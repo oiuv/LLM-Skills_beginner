@@ -1,0 +1,21 @@
+{
+  "name": "mcp-client-example",
+  "version": "1.0.0",
+  "description": "MCP Client 示例",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "test:weather": "tsx src/test-weather.ts",
+    "test:github": "tsx src/test-github.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.0"
+  }
+}
