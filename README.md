@@ -1,4 +1,4 @@
-﻿# LLM-Skills_beginner
+# LLM-Skills_beginner
 
 > 从零开始学习 MCP 协议、Server/Client 开发、Skills 系统、Agent 实现的完整教程
 
@@ -38,11 +38,11 @@ PART5: Agent 实现
 └── 04-memory-system.md      三层记忆系统
 
 PART6: 完整项目
-'"'"'└── 01-project-overview.md   Weather + GitHub 助手完整实现
+└── 01-project-overview.md   Weather + GitHub 助手完整实现
 
 PART7: 生产环境
-'"'"'└── 01-deployment-guide.md  容器化、监控、安全、CI/CD
-'"'"'
+└── 01-deployment-guide.md  容器化、监控、安全、CI/CD
+```
 
 ---
 
@@ -76,32 +76,32 @@ PART7: 生产环境
 ```
 第一阶段：协议基础
 PART1-MCP-Protocol/
-'"'"'└── 6 章协议内容，理解 MCP 为什么这样设计
+└── 6 章协议内容，理解 MCP 为什么这样设计
 
 第二阶段：Server 开发
 PART2-MCP-Server/
-'"'"'└── 5 章内容，掌握工具、资源、提示词定义
+└── 5 章内容，掌握工具、资源、提示词定义
 
 第三阶段：Client 开发
 PART3-MCP-Client/
-'"'"'└── 3 章内容，理解连接管理和工具调用
+└── 3 章内容，理解连接管理和工具调用
 
 第四阶段：Skills 系统
 PART4-Skills-System/
-'"'"'└── 2 章内容，掌握 SKILL.md 规范和解析器
+└── 2 章内容，掌握 SKILL.md 规范和解析器
 
 第五阶段：Agent 实现
 PART5-Agent/
-'"'"'└── 4 章内容，掌握 ReAct、工具编排、记忆系统
+└── 4 章内容，掌握 ReAct、工具编排、记忆系统
 
 第六阶段：项目实战
 PART6-Demo-Project/
-'"'"'└── 综合运用所有知识
+└── 综合运用所有知识
 
 第七阶段：生产部署
 PART7-Production/
-'"'"'└── 容器化、监控、安全、CI/CD
-'"'"'
+└── 容器化、监控、安全、CI/CD
+```
 
 ---
 
@@ -109,14 +109,14 @@ PART7-Production/
 
 ```
 LLM-Skills_beginner/
-'"'"'├── PART1-MCP-Protocol/       协议层理论
-'"'"'├── PART2-MCP-Server/         Server 开发
-'"'"'├── PART3-MCP-Client/         Client 开发
-'"'"'├── PART4-Skills-System/       Skills 系统
-'"'"'├── PART5-Agent/               Agent 实现
-'"'"'├── PART6-Demo-Project/        完整项目
-'"'"'└── PART7-Production/          生产部署
-'"'"'
+├── PART1-MCP-Protocol/       协议层理论
+├── PART2-MCP-Server/         Server 开发
+├── PART3-MCP-Client/         Client 开发
+├── PART4-Skills-System/       Skills 系统
+├── PART5-Agent/               Agent 实现
+├── PART6-Demo-Project/        完整项目
+└── PART7-Production/          生产部署
+```
 
 ---
 
@@ -135,15 +135,15 @@ LLM-Skills_beginner/
 
 ```
 demo-project/
-'"'"'├── servers/
-'"'"'│   ├── weather-server/        天气 MCP Server
-'"'"'│   '"'"'└── github-server/         GitHub MCP Server
-'"'"'└── src/
-    '"'"'├── agent/                 Agent 实现
-    '"'"'├── mcp/                   MCP Client
-    '"'"''"'"'└── cli.ts                 CLI 入口
-'"'"'
+├── servers/
+│   ├── weather-server/        天气 MCP Server
+│   └── github-server/         GitHub MCP Server
+└── src/
+    ├── agent/                 Agent 实现
+    ├── mcp/                   MCP Client
+    └── cli.ts                 CLI 入口
+```
 
 ---
 
-_Last updated: 2024-03-25_
+_Last updated: 2026-03-26_
