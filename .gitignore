@@ -43,3 +43,9 @@ temp/
 
 # MCP specific
 .mcp/
+
+# Test configuration files (exclude actual configs, keep examples)
+mcp-config.json
+settings.json
+*.config.json
+!*.example.json

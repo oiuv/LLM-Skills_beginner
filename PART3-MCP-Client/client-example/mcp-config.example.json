@@ -1,0 +1,32 @@
+{
+  "mcpServers": {
+    "minimax": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["minimax-mcp"],
+      "env": {
+        "MINIMAX_API_HOST": "https://api.minimaxi.com",
+        "MINIMAX_API_KEY": "your_api_key_here",
+        "MINIMAX_API_RESOURCE_MODE": "url",
+        "MINIMAX_MCP_BASE_PATH": "/path/to/local/output"
+      }
+    },
+    "windows": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["windows-mcp"]
+    },
+    "context7": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp"]
+    },
+    "webreader": {
+      "type": "http",
+      "url": "https://open.bigmodel.cn/api/mcp/web_reader/mcp",
+      "headers": {
+        "Authorization": "Bearer your_api_key_here"
+      }
+    }
+  }
+}
