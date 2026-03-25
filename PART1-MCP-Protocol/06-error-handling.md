@@ -586,7 +586,7 @@ const response = await send({
   id: 0,
   method: "initialize",
   params: {
-    protocolVersion: "2024-11-05", // 确保版本正确
+    protocolVersion: "2025-11-25", // 确保版本正确
     capabilities: {},
     clientInfo: { name: "my-client", version: "1.0.0" }
   }
@@ -963,7 +963,7 @@ PART1-MCP-Protocol
 ├── 02-json-rpc-spec        JSON-RPC 2.0 完整规范、批量请求、错误处理
 ├── 03-message-types        MCP 所有消息类型的完整字段定义
 ├── 04-capabilities        Capability 协商机制、版本兼容
-├── 05-transport-layer      stdio 和 SSE 传输原理与实现
+├── 05-transport-layer      stdio 和 Streamable HTTP 传输原理与实现
 └── 06-error-handling      错误码体系、调试技巧、错误处理最佳实践
 ```
 

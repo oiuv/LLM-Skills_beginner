@@ -62,7 +62,7 @@
 
 ## 2. 资源结构
 
-### 2.1 资源定义三要素
+### 2.1 资源定义要素
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -74,8 +74,11 @@
 │                                                              │
 │  2. Metadata（元数据）                                       │
 │     └── name: 资源名称                                       │
+│     └── title: 人类可读的标题                               │
 │     └── description: 资源描述                                │
 │     └── mimeType: 数据类型                                   │
+│     └── icons: 图标（emoji 或图片 URL）                      │
+│     └── annotations: 标注信息                                │
 │                                                              │
 │  3. Content（内容）                                          │
 │     └── text: 文本内容                                       │
@@ -92,9 +95,15 @@
 interface Resource {
   uri: string;
   name: string;
+  title?: string;           // 人类可读的标题
   description?: string;
   mimeType?: string;
-  content: {
+  icons?: Content[];        // 图标
+  annotations?: {          // 标注信息
+    prompt?: string;
+    [key: string]: unknown;
+  };
+  content?: {
     text?: string;
     blob?: string;
   };
@@ -102,9 +111,14 @@ interface Resource {
 
 const configResource: Resource = {
   uri: "config://app/settings",
-  name: "应用设置",
+  name: "app_settings",
+  title: "应用设置",
   description: "当前应用的配置信息",
   mimeType: "application/json",
+  icons: [{ type: "text", text: "⚙️" }],
+  annotations: {
+    prompt: "当用户询问应用设置或偏好时引用"
+  },
   content: {
     text: JSON.stringify({
       theme: "dark",
@@ -210,9 +224,14 @@ URI 模板允许 Client 使用变量来构建 URI：
 ```typescript
 const templateResource = {
   uriTemplate: "git://repo/{owner}/{name}",
-  name: "GitHub 仓库",
+  name: "github_repo",
+  title: "GitHub 仓库",
   description: "访问指定 GitHub 仓库信息",
-  mimeType: "application/json"
+  mimeType: "application/json",
+  icons: [{ type: "text", text: "🐙" }],
+  annotations: {
+    prompt: "当用户询问 GitHub 仓库信息时使用"
+  }
 };
 ```
 
@@ -225,6 +244,27 @@ Client 获取模板后，可以这样使用：
   "params": {
     "uri": "git://repo/anthropic/modelcontextprotocol"
   }
+}
+```
+
+### 3.4 资源分页支持
+
+当资源数量较多时，`resources/list` 支持分页：
+
+```json
+// 请求（带分页参数）
+{
+  "method": "resources/list",
+  "params": {
+    "cursor": "eyJpZCI6MTIzfQ==",
+    "limit": 50
+  }
+}
+
+// 响应
+{
+  "resources": [...],
+  "nextCursor": "eyJpZCI6MTczfQ=="
 }
 ```
 
@@ -948,7 +988,221 @@ main().catch(console.error);
 
 ---
 
-## 8. 本章小结
+## 8. 参数自动完成（Parameter Completion）
+
+动态资源（Resource Templates）支持参数自动完成功能，帮助用户在输入时获得有效的建议值。
+
+### 8.1 为什么需要参数自动完成？
+
+当用户输入资源 URI 时，可能不知道有效的参数值：
+
+```
+用户输入: weather://forecast/{city}
+                  ↑
+           用户不知道可以填什么
+
+建议: "Paris"（巴黎）、"Beijing"（北京）、"Tokyo"（东京）
+```
+
+参数自动完成可以帮助用户发现有效的值，而不需要记住确切的格式。
+
+### 8.2 工作原理
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                    参数自动完成流程                                 │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  1. Client 显示资源模板 URI 输入框                                 │
+│     user types: "weather://forecast/Pa"                          │
+│                                                                   │
+│  2. Client 向 Server 请求建议值                                   │
+│     resources/complete?uriTemplate=weather://forecast/{city}      │
+│     & partial={"city": "Pa"}                                     │
+│                                                                   │
+│  3. Server 返回匹配的建议                                          │
+│     ["Paris", "Park City", "Parkersburg"]                       │
+│                                                                   │
+│  4. Client 显示下拉建议                                            │
+│                                                                   │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### 8.3 实现示例
+
+```typescript
+// Server 端实现参数自动完成
+server.setRequestHandler("resources/complete", async (request) => {
+  const { uriTemplate, params } = request.params;
+
+  // 根据模板和当前输入返回建议
+  const suggestions = await getSuggestions(uriTemplate, params);
+
+  return {
+    completion: suggestions.map(text => ({ label: text }))
+  };
+});
+
+// 建议数据源示例
+async function getSuggestions(uriTemplate: string, params: Record<string, string>) {
+  switch (uriTemplate) {
+    case "weather://forecast/{city}":
+      const partialCity = params.city || "";
+      // 返回匹配的城市列表
+      return [
+        "Paris - 巴黎",
+        "Park City - 帕克城",
+        "Parkersburg - 帕克斯堡",
+        "Paterson - 帕特森"
+      ].filter(c => c.toLowerCase().startsWith(partialCity.toLowerCase()));
+
+    case "flights://search/{airport}":
+      const partialAirport = params.airport || "";
+      // 返回匹配的机场列表
+      return [
+        "JFK - John F. Kennedy International Airport",
+        "LAX - Los Angeles International Airport",
+        "CDG - Charles de Gaulle Airport",
+        "LHR - London Heathrow Airport"
+      ].filter(a => a.toLowerCase().startsWith(partialAirport.toLowerCase()));
+
+    default:
+      return [];
+  }
+}
+```
+
+### 8.4 常见使用场景
+
+| 场景 | 输入 | 建议示例 |
+|------|------|---------|
+| 城市天气 | `weather://forecast/Pa` | "Paris", "Park City" |
+| 航班搜索 | `flights://search/JF` | "JFK - New York" |
+| 日历事件 | `calendar://events/2024-` | "2024-01", "2024-06", "2024-12" |
+| 文档搜索 | `docs://search/{query}` | 根据用户输入返回文档建议 |
+
+---
+
+## 9. 资源用户交互模型（User Interaction Model）
+
+资源是由应用程序控制的，应用程序决定如何获取、处理和呈现资源给模型。
+
+### 9.1 常见的交互模式
+
+**1. 树状或列表视图浏览资源**
+
+```
+┌─────────────────────────────────────────┐
+│  📁 资源浏览器                            │
+├─────────────────────────────────────────┤
+│  📂 用户资源                              │
+│  ├── 📄 user://profile (用户资料)         │
+│  ├── 📄 user://preferences (偏好设置)     │
+│  └── 📄 user://history (历史记录)         │
+│  📂 日历资源                              │
+│  ├── 📅 calendar://events/2024          │
+│  └── 📅 calendar://events/2025          │
+│  📂 文档资源                              │
+│  ├── 📃 docs://manuals/getting-started  │
+│  └── 📃 docs://api/reference            │
+└─────────────────────────────────────────┘
+```
+
+**2. 搜索和过滤界面**
+
+```
+┌─────────────────────────────────────────┐
+│  🔍 搜索资源                              │
+├─────────────────────────────────────────┤
+│  [_____________] [类型 ▼] [搜索]          │
+│                                         │
+│  找到 3 个匹配的资源：                     │
+│  • docs://api/authentication            │
+│  • docs://api/rate-limiting            │
+│  • docs://api/error-codes              │
+└─────────────────────────────────────────┘
+```
+
+**3. 自动上下文包含**
+
+应用程序可以根据启发式规则或 AI 选择自动将相关资源包含在上下文中：
+
+```typescript
+// 自动包含策略示例
+const autoIncludeRules = [
+  // 当用户询问天气时，自动包含用户偏好设置中的城市
+  {
+    trigger: "weather",
+    include: ["user://preferences/default-city"]
+  },
+  // 当用户询问代码时，自动包含项目文档
+  {
+    trigger: "code|编程|开发",
+    include: ["docs://project/architecture"]
+  }
+];
+```
+
+**4. 手动或批量选择**
+
+```
+┌─────────────────────────────────────────┐
+│  📋 选择要包含的资源                       │
+├─────────────────────────────────────────┤
+│  ☑ user://profile                       │
+│  ☑ calendar://events/current            │
+│  ☐ docs://manuals/internal-api          │
+│  ☑ user://preferences                   │
+│                                         │
+│  [取消]                    [确认选择]    │
+└─────────────────────────────────────────┘
+```
+
+### 9.2 资源呈现给模型的方式
+
+应用程序获取资源后，可以选择如何处理和呈现给模型：
+
+```typescript
+async function prepareContextForModel(resourceUris: string[]) {
+  const context = [];
+
+  for (const uri of resourceUris) {
+    const content = await client.readResource(uri);
+
+    // 方式 1：直接传递原始内容
+    context.push({
+      type: "resource",
+      resource: content
+    });
+
+    // 方式 2：提取关键信息后传递
+    const summary = await summarizeResource(content);
+    context.push({
+      type: "text",
+      text: `相关资源 (${uri}): ${summary}`
+    });
+
+    // 方式 3：使用嵌入搜索获取相关片段
+    const relevantChunks = await embeddingSearch(content, query);
+    context.push(...relevantChunks);
+  }
+
+  return context;
+}
+```
+
+### 9.3 与工具的用户交互对比
+
+| 特性 | 工具 (Tool) | 资源 (Resource) |
+|------|-------------|-----------------|
+| **控制者** | Model（AI 模型） | Application（应用程序） |
+| **用户交互** | 审批对话框、权限控制 | 浏览、搜索、选择 |
+| **执行时机** | AI 决定 | 应用决定 |
+| **反馈** | 执行结果（成功/失败） | 数据内容 |
+
+---
+
+## 10. 本章小结
 
 ```
 资源管理核心要点

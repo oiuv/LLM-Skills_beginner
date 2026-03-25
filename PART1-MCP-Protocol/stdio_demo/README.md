@@ -196,15 +196,16 @@ const result = await client.callTool({
 });
 ```
 
-## 与 SSE 模式的对比
+## 与 Streamable HTTP 模式的对比
 
-| 特性 | STDIO | SSE |
-|------|-------|-----|
+| 特性 | STDIO | Streamable HTTP |
+|------|-------|-----------------|
 | 通信范围 | 本机进程 | 网络（可跨机器） |
-| 协议 | 标准输入输出 | HTTP + SSE |
+| 协议 | 标准输入输出 | HTTP + Chunked Transfer |
 | Server 推送 | ❌ 不支持 | ✅ 支持 |
 | 并发 | 低 | 高 |
 | 部署复杂度 | 低 | 中等 |
+| 会话恢复 | ❌ 不支持 | ✅ 支持 |
 
 ## 学习要点
 

@@ -69,7 +69,7 @@ Client                                                      Server
   │       roots: { listChanged: true },                      │  ← Client 声明
   │       sampling: {}                                       │
   │     }                                                     │
-  │     protocolVersion: "2024-11-05"                        │
+  │     protocolVersion: "2025-11-25"                        │
   │     clientInfo: { name: "my-agent", version: "1.0.0" }   │
   │                                                           │
   │ ◄─── initialize result ───────────────────────────────── │
@@ -77,7 +77,7 @@ Client                                                      Server
   │       tools: {},                                          │
   │       resources: { subscribe: true }                     │
   │     }                                                     │
-  │     protocolVersion: "2024-11-05"                        │
+  │     protocolVersion: "2025-11-25"                        │
   │     serverInfo: { name: "weather-server", version: "1.0.0" }
   │                                                           │
   │ ──── notifications/initialized ────────────────────────► │  ← 握手完成
@@ -824,5 +824,5 @@ Client Capabilities
 ## 下一步
 
 继续阅读：
-- [05-transport-layer.md](05-transport-layer.md) — stdio 和 SSE 传输层实现
+- [05-transport-layer.md](05-transport-layer.md) — stdio 和 Streamable HTTP 传输层实现
 - [06-error-handling.md](06-error-handling.md) — 错误码体系与调试方法

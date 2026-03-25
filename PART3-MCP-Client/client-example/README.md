@@ -84,30 +84,31 @@ node mcp-tester.js --config mcp-config.json --server web-reader
 
 ## 测试示例
 
-### 1. 测试天气 Server
+### 1. 测试 STDIO Server
 
 ```bash
-# 先确保天气 Server 已构建
-cd ../../PART2-MCP-Server/weather-server
-npm run build
-
-# 回到测试工具目录
 cd ../../PART3-MCP-Client/client-example
 
-# 运行测试
-node mcp-tester.js --stdio --command "node" --args "../../PART2-MCP-Server/weather-server/dist/index.js"
+# 测试 context7-mcp
+node mcp-tester.js --stdio --command "npx" --args "@upstash/context7-mcp"
+
+# 测试 windows-mcp
+node mcp-tester.js --stdio --command "uvx" --args "windows-mcp"
 ```
 
-### 2. 测试 SSE Server
+### 2. 测试 Streamable HTTP Server
 
 ```bash
-# 启动 SSE Server（在另一个终端）
-cd ../../PART1-MCP-Protocol/sse_demo
-node server.js
+# 启动 HTTP Server（在另一个终端）
+cd ../../PART1-MCP-Protocol/http_demo
+node server.py
 
 # 运行测试
 cd ../../PART3-MCP-Client/client-example
 node mcp-tester.js --http --url "http://localhost:5000"
+
+# 测试 context7.com 在线服务
+node mcp-tester.js --http --url "https://mcp.context7.com/mcp"
 ```
 
 ## 功能菜单
@@ -259,6 +260,6 @@ node mcp-tester.js --http --url "https://open.bigmodel.cn/api/mcp/xxx/mcp" --tok
 ## 注意事项
 
 - 确保目标 Server 支持相应的传输模式（stdio/http）
-- HTTP 模式需要 Server 支持 SSE 传输
+- HTTP 模式需要 Server 支持 Streamable HTTP 传输
 - 某些 Server 可能需要特定的环境变量
 - 工具参数需要符合 JSON schema 要求

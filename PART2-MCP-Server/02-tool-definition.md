@@ -33,9 +33,9 @@ AI: "北京今天晴，25°C，适合户外活动"
 
 ## 2. 工具定义结构
 
-### 2.1 工具的三个要素
+### 2.1 工具的核心要素
 
-每个工具由三部分组成：
+每个工具由以下部分组成：
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -45,11 +45,23 @@ AI: "北京今天晴，25°C，适合户外活动"
 │  1. Name（名称）                                             │
 │     └── 唯一标识符，snake_case 格式                          │
 │                                                              │
-│  2. Description（描述）                                     │
+│  2. Title（标题）                                           │
+│     └── 人类可读的简短标题，用于 UI 显示                     │
+│                                                              │
+│  3. Description（描述）                                     │
 │     └── 告诉 AI 这个工具做什么、何时使用                      │
 │                                                              │
-│  3. Input Schema（输入模式）                                 │
+│  4. Input Schema（输入模式）                                 │
 │     └── 定义工具需要什么参数                                 │
+│                                                              │
+│  5. Icons（图标）                                           │
+│     └── 工具的可视化图标（emoji 或图片 URL）                  │
+│                                                              │
+│  6. Output Schema（输出模式）                                │
+│     └── 定义工具返回数据的结构（可选）                        │
+│                                                              │
+│  7. Annotations（标注）                                      │
+│     └── 工具的元数据标注                                     │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -76,7 +88,12 @@ const tool: Tool = {
 ```typescript
 const getWeatherTool: Tool = {
   name: "get_weather",
+  title: "查询天气",
   description: "查询城市实时天气，包括温度、湿度、风速等。注意：不支持县级市查询。",
+  icons: [
+    { type: "image", data: "base64...", mimeType: "image/png" },
+    { type: "text", text: "🌤️" }
+  ],
   inputSchema: {
     type: "object",
     properties: {
@@ -93,6 +110,20 @@ const getWeatherTool: Tool = {
     },
     required: ["city"]
   },
+  outputSchema: {
+    type: "object",
+    properties: {
+      temperature: { type: "number" },
+      condition: { type: "string" },
+      humidity: { type: "number" }
+    }
+  },
+  annotations: {
+    prompt: "当用户询问天气时使用",
+    commit: "feat(weather): 添加天气查询功能",
+    impact: "medium",
+    default: false
+  },
   handler: async (args) => {
     const { city, units = "metric" } = args;
     const weather = await fetchWeather(city, units);
@@ -100,10 +131,146 @@ const getWeatherTool: Tool = {
       content: [{
         type: "text",
         text: formatWeather(weather)
-      }]
+      }],
+      _meta: {
+        contentType: "application/json"
+      }
     };
   }
 };
+```
+
+---
+
+### 2.4 Title（标题）
+
+`title` 是一个人类可读的简短标题，用于 UI 显示：
+
+```typescript
+const tool = {
+  name: "get_weather",
+  title: "查询天气",  // 简短标题
+  description: "查询城市实时天气..."
+};
+```
+
+**注意**：`title` 与 `name` 的区别：
+- `name`：机器可读的唯一标识符（snake_case）
+- `title`：人类可读的显示名称
+
+### 2.5 Icons（图标）
+
+`icons` 字段用于指定工具的可视化图标：
+
+```typescript
+const tool = {
+  name: "get_weather",
+  description: "查询城市实时天气...",
+  icons: [
+    // 图片图标（base64 或 URL）
+    {
+      type: "image",
+      data: "base64 encoded image data",
+      mimeType: "image/png"
+    },
+    // 或 emoji 图标
+    {
+      type: "text",
+      text: "🌤️"
+    }
+  ]
+};
+```
+
+### 2.6 Output Schema（输出模式）
+
+`outputSchema` 定义工具返回数据的结构，有助于 Client 正确解析结果：
+
+```typescript
+const tool = {
+  name: "get_weather",
+  description: "查询城市实时天气...",
+  inputSchema: { /* ... */ },
+  outputSchema: {
+    type: "object",
+    properties: {
+      temperature: {
+        type: "number",
+        description: "温度（摄氏度）"
+      },
+      condition: {
+        type: "string",
+        description: "天气状况，如 '晴'、'多云'、'雨'"
+      },
+      humidity: {
+        type: "number",
+        description: "湿度（百分比）"
+      },
+      windSpeed: {
+        type: "number",
+        description: "风速（米/秒）"
+      }
+    },
+    required: ["temperature", "condition"]
+  }
+};
+```
+
+### 2.7 Annotations（标注）
+
+`annotations` 提供工具的元数据标注：
+
+```typescript
+const tool = {
+  name: "get_weather",
+  description: "查询城市实时天气...",
+  annotations: {
+    // 提示 AI 何时使用这个工具
+    prompt: "当用户询问天气或气温时使用",
+
+    // 关联的代码提交
+    commit: "feat(weather): 添加天气查询功能",
+
+    // 影响程度：low, medium, high
+    impact: "medium",
+
+    // 是否为默认工具
+    default: false,
+
+    // 认证要求
+    requiresAuth: true
+  }
+};
+```
+
+**annotations 字段详解**：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `prompt` | string | 提示 AI 何时使用 |
+| `commit` | string | 关联的 git commit |
+| `impact` | string | 影响程度：low/medium/high |
+| `default` | boolean | 是否为默认工具 |
+| `requiresAuth` | boolean | 是否需要认证 |
+
+### 2.8 tools/list 分页支持
+
+`tools/list` 响应支持分页，当工具数量较多时：
+
+```typescript
+// tools/list 响应（带分页）
+{
+  "tools": [...],
+  "nextCursor": "eyJpZCI6MTIzfQ=="
+}
+
+// 带有 cursor 的请求
+{
+  "method": "tools/list",
+  "params": {
+    "cursor": "eyJpZCI6MTIzfQ=="
+  }
+}
 ```
 
 ---
@@ -503,11 +670,17 @@ interface ToolResult {
 }
 
 interface Content {
-  type: "text" | "image" | "resource";
+  // 文本内容
+  type: "text" | "image" | "audio" | "resource" | "resourceLink" | "structuredContent";
   text?: string;
-  data?: string;      // base64 for image
-  mimeType?: string;  // for image
-  resource?: ResourceContent; // for resource
+  data?: string;           // base64 for image/audio
+  mimeType?: string;       // for image/audio
+  resource?: ResourceContent;   // for resource
+  resourceLink?: {
+    url: string;
+    description?: string;
+  };  // for resourceLink
+  structuredContent?: unknown;  // for structuredContent
 }
 ```
 
@@ -550,7 +723,53 @@ handler: async (args) => {
 }
 ```
 
-### 5.4 返回错误结果
+### 5.4 返回音频结果
+
+```typescript
+handler: async (args) => {
+  const { text } = args;
+
+  // 文字转语音
+  const audioBuffer = await ttsService.synthesize(text);
+
+  // 返回音频（base64 编码）
+  return {
+    content: [{
+      type: "audio",
+      data: audioBuffer.toString("base64"),
+      mimeType: "audio/mp3"
+    }]
+  };
+}
+```
+
+### 5.5 返回结构化内容
+
+```typescript
+handler: async (args) => {
+  const { city } = args;
+
+  // 获取天气数据
+  const weather = await weatherApi.get(city);
+
+  // 返回结构化数据（JSON）
+  return {
+    content: [{
+      type: "structuredContent",
+      structuredContent: {
+        temperature: weather.temp,
+        condition: weather.condition,
+        humidity: weather.humidity,
+        windSpeed: weather.windSpeed,
+        aqi: weather.aqi,
+        updatedAt: weather.updatedAt
+      }
+    }]
+  };
+}
+```
+
+### 5.6 返回错误结果
 
 ```typescript
 handler: async (args) => {
@@ -867,7 +1086,71 @@ handler: async (args) => {
 }
 ```
 
-### 8.4 日志记录
+### 8.4 安全考虑
+
+**工具调用前的确认**：
+
+对于可能产生副作用或涉及敏感操作的工具，应该在执行前向用户确认：
+
+```typescript
+const dangerousTool: Tool = {
+  name: "delete_file",
+  description: "删除指定路径的文件（不可恢复）",
+  annotations: {
+    impact: "high",
+    prompt: "当用户明确要求删除文件时使用"
+  },
+  handler: async (args) => {
+    const { filePath } = args;
+
+    // 检查文件是否存在
+    if (!await fileSystem.exists(filePath)) {
+      throw MCPError.resourceNotFound(filePath);
+    }
+
+    // 检查是否为敏感路径
+    const sensitivePaths = ["/etc", "/system", "/home"];
+    if (sensitivePaths.some(p => filePath.startsWith(p))) {
+      throw MCPError.permissionDenied("Cannot delete system files");
+    }
+
+    // 执行删除
+    await fileSystem.delete(filePath);
+
+    return {
+      content: [{ type: "text", text: `已删除文件: ${filePath}` }]
+    };
+  }
+};
+```
+
+**敏感数据的处理**：
+
+```typescript
+handler: async (args) => {
+  const { userId } = args;
+
+  // 获取用户数据
+  const user = await db.getUser(userId);
+
+  // 过滤敏感字段
+  const safeUserData = {
+    id: user.id,
+    name: user.name,
+    email: user.email
+    // 不返回 password、creditCard 等敏感信息
+  };
+
+  return {
+    content: [{
+      type: "structuredContent",
+      structuredContent: safeUserData
+    }]
+  };
+}
+```
+
+### 8.5 日志记录
 
 ```typescript
 handler: async (args) => {
@@ -901,7 +1184,179 @@ handler: async (args) => {
 
 ---
 
-## 9. 本章小结
+## 9. 用户交互模型（User Interaction Model）
+
+MCP 强调人类在 AI 执行操作过程中的控制权。工具执行涉及外部操作和潜在风险，因此 MCP 设计了多种机制让用户保持对 AI 行为的掌控。
+
+### 9.1 信任与安全机制
+
+为了确保用户对模型执行的操作保持控制，应用程序可以实现以下用户控制机制：
+
+**1. UI 中显示可用工具**
+
+应用程序可以在界面中展示所有可用的工具，让用户决定在特定交互中是否启用某个工具：
+
+```
+┌─────────────────────────────────────────┐
+│  🤖 AI 助手                              │
+├─────────────────────────────────────────┤
+│  可用工具：                              │
+│  ☑️ 天气查询    ☑️ 发送邮件              │
+│  ☑️ 日历管理    ☐ 文件删除               │
+│  ☑️ 代码搜索    ☐ 数据库操作              │
+└─────────────────────────────────────────┘
+```
+
+**2. 执行前的审批对话框**
+
+对于可能产生副作用或涉及敏感操作的工具，在执行前向用户确认：
+
+```
+┌─────────────────────────────────────────┐
+│  ⚠️ 工具执行确认                          │
+├─────────────────────────────────────────┤
+│  即将执行：delete_file                    │
+│                                         │
+│  参数：                                  │
+│  - filePath: /Users/admin/temp/test.txt │
+│                                         │
+│  ⚠️ 此操作不可恢复！                       │
+│                                         │
+│  [取消]                    [确认删除]     │
+└─────────────────────────────────────────┘
+```
+
+**3. 预批准安全操作的权限设置**
+
+对于常见的、安全的操作，用户可以预先授权：
+
+```typescript
+// 用户可以预先批准某些低风险操作
+const preApprovedTools = [
+  "search_weather",
+  "get_current_time",
+  "calculate"
+];
+
+// 高风险操作需要每次确认
+const highRiskTools = [
+  "delete_file",
+  "send_email",
+  "database_write"
+];
+```
+
+**4. 活动日志**
+
+显示所有工具执行及其结果，让用户了解 AI 做了什么：
+
+```
+┌─────────────────────────────────────────┐
+│  📋 工具执行日志                          │
+├─────────────────────────────────────────┤
+│  09:30:15  get_weather    ✅ 成功        │
+│  09:31:42  send_email     ✅ 成功        │
+│  09:35:01  delete_file    ⚠️ 用户取消    │
+│  09:36:22  search_code    ✅ 成功        │
+└─────────────────────────────────────────┘
+```
+
+### 9.2 工具与用户控制的关系
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                      工具控制层级                                   │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  Model（AI 模型）                                                  │
+│  ├── 可以主动发现和调用工具                                         │
+│  ├── 根据上下文判断何时使用工具                                      │
+│  └── 但必须经过用户授权才能执行敏感操作                              │
+│                                                                   │
+│  User（用户）                                                      │
+│  ├── 控制哪些工具可用                                               │
+│  ├── 审批高风险操作                                                 │
+│  └── 查看工具执行日志                                               │
+│                                                                   │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### 9.3 Elicitation 机制
+
+当工具需要用户输入或确认时，Server 可以通过 Elicitation 请求用户输入：
+
+```typescript
+// Server 请求用户输入
+{
+  "method": "elicitation/requestInput",
+  "params": {
+    "message": "确定要删除这个文件吗？此操作不可恢复。",
+    "requestedSchema": {
+      "type": "object",
+      "properties": {
+        "confirmed": {
+          "type": "boolean",
+          "description": "确认删除"
+        }
+      }
+    }
+  }
+}
+```
+
+### 9.4 开发者实现建议
+
+作为 MCP Server 开发者，应该：
+
+1. **通过 annotations 标记工具风险等级**
+
+```typescript
+const tool = {
+  name: "delete_file",
+  annotations: {
+    impact: "high",  // 标记为高风险操作
+    prompt: "仅在用户明确要求时使用"
+  }
+};
+```
+
+2. **返回有意义的错误信息**
+
+```typescript
+handler: async (args) => {
+  if (!await hasPermission(args.userId, 'delete_file')) {
+    // 返回用户可理解的错误，不要暴露内部细节
+    return {
+      content: [{
+        type: "text",
+        text: "您没有权限执行此操作，请联系管理员。"
+      }],
+      isError: true
+    };
+  }
+};
+```
+
+3. **支持操作取消**
+
+```typescript
+handler: async (args, context) => {
+  // 定期检查是否已取消
+  for (const item of largeDataset) {
+    if (context.cancelled) {
+      return {
+        content: [{ type: "text", text: "操作已取消" }],
+        isError: true
+      };
+    }
+    await processItem(item);
+  }
+};
+```
+
+---
+
+## 10. 本章小结
 
 ```
 工具定义核心要点

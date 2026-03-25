@@ -92,6 +92,15 @@ const prompt = await server.getPrompt("code_review", {
 │     └── 定义需要哪些变量                                      │
 │     └── 每个参数有名称、描述、是否必需                        │
 │                                                              │
+│  4. Title（标题）                                            │
+│     └── 人类可读的简短标题                                    │
+│                                                              │
+│  5. Icons（图标）                                            │
+│     └── 提示模板的可视化图标                                  │
+│                                                              │
+│  6. Annotations（标注）                                      │
+│     └── 提示模板的元数据标注                                  │
+│                                                              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -100,8 +109,14 @@ const prompt = await server.getPrompt("code_review", {
 ```typescript
 interface PromptTemplate {
   name: string;
+  title?: string;            // 人类可读的标题
   description: string;
   arguments?: PromptArgument[];
+  icons?: Content[];          // 图标
+  annotations?: {             // 标注信息
+    prompt?: string;
+    [key: string]: unknown;
+  };
 }
 
 interface PromptArgument {

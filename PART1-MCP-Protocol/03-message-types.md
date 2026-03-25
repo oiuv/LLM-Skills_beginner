@@ -59,7 +59,7 @@ Client 发起握手请求。
   "id": 0,
   "method": "initialize",
   "params": {
-    "protocolVersion": "2024-11-05",
+    "protocolVersion": "2025-11-25",
     "capabilities": {
       "roots": {
         "listChanged": true
@@ -78,7 +78,7 @@ Client 发起握手请求。
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `protocolVersion` | string | ✅ | 协议版本，固定 `"2024-11-05"` |
+| `protocolVersion` | string | ✅ | 协议版本，固定 `"2025-11-25"` |
 | `capabilities` | object | ✅ | Client 支持的能力 |
 | `clientInfo` | object | ✅ | Client 应用信息 |
 
@@ -106,7 +106,7 @@ Server 响应握手请求。
   "jsonrpc": "2.0",
   "id": 0,
   "result": {
-    "protocolVersion": "2024-11-05",
+    "protocolVersion": "2025-11-25",
     "capabilities": {
       "tools": {
         "listChanged": true
@@ -185,12 +185,12 @@ Client 告知 Server 握手完成。
 Client                              Server
   │                                    │
   │ ──── initialize ────────────────► │
-  │    protocolVersion: "2024-11-05"   │
+  │    protocolVersion: "2025-11-25"   │
   │    capabilities: {...}             │
   │    clientInfo: {...}               │
   │                                    │
   │ ◄─── initialize result ─────────── │
-  │    protocolVersion: "2024-11-05"   │
+  │    protocolVersion: "2025-11-25"   │
   │    capabilities: {...}             │
   │    serverInfo: {...}               │
   │                                    │
@@ -1023,4 +1023,4 @@ MCP 消息类型速查
 
 继续阅读：
 - [04-capabilities.md](04-capabilities.md) — Capability 协商机制详解
-- [05-transport-layer.md](05-transport-layer.md) — stdio 和 SSE 传输层实现
+- [05-transport-layer.md](05-transport-layer.md) — stdio 和 Streamable HTTP 传输层实现

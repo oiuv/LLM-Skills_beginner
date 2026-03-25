@@ -35,7 +35,7 @@ Client C ────────────────────► Server 
 ```
 
 **需要会话管理的场景**：
-- SSE 传输：多个 Client 通过同一个 HTTP 连接
+- Streamable HTTP 传输：多个 Client 通过同一个 HTTP 连接
 - Server 需要跟踪每个 Client 的状态（如订阅、缓存）
 - 需要为不同 Client 提供差异化服务
 
@@ -322,7 +322,7 @@ class SessionContextManager {
 
 ## 4. 多会话处理
 
-### 4.1 SSE 多会话实现
+### 4.1 Streamable HTTP 多会话实现
 
 ```typescript
 // multi-session-server.ts
@@ -330,29 +330,30 @@ class SessionContextManager {
 class MultiSessionServer {
   private sessionManager = new SessionManager();
   private contextManager: SessionContextManager;
-  private sessions = new Map<string, ServerResponse>(); // sessionId → SSE response
+  private sessions = new Map<string, ServerResponse>(); // sessionId → HTTP response
 
   constructor() {
     this.contextManager = new SessionContextManager(this.sessionManager);
   }
 
   /**
-   * 处理新的 SSE 连接
+   * 处理新的 Streamable HTTP 连接
    */
-  async handleSSEConnection(req: IncomingMessage, res: ServerResponse): Promise<string> {
+  async handleHTTPConnection(req: IncomingMessage, res: ServerResponse): Promise<string> {
     // 创建新会话
     const session = this.sessionManager.createSession();
     const sessionId = session.id;
 
-    // 保存 SSE response
+    // 保存 HTTP response
     this.sessions.set(sessionId, res);
 
     // 创建会话上下文
     this.contextManager.createContext(sessionId);
 
-    // 设置 SSE headers
+    // 设置 Streamable HTTP headers
     res.writeHead(200, {
-      "Content-Type": "text/event-stream",
+      "Content-Type": "application/json",
+      "Transfer-Encoding": "chunked",
       "Cache-Control": "no-cache",
       "Connection": "keep-alive",
     });
@@ -403,7 +404,7 @@ class MultiSessionServer {
   private sendToSession(sessionId: string, message: unknown): void {
     const res = this.sessions.get(sessionId);
     if (res) {
-      res.write(`data: ${JSON.stringify(message)}\n\n`);
+      res.write(JSON.stringify(message) + "\n");
     }
   }
 
@@ -424,7 +425,7 @@ class MultiSessionServer {
     // 关闭会话
     this.sessionManager.closeSession(sessionId);
 
-    // 移除 SSE response
+    // 移除 HTTP response
     this.sessions.delete(sessionId);
 
     console.log(`[Server] Session ${sessionId} closed`);
@@ -713,7 +714,7 @@ Session Context
 └── 每个会话独立
 
 多会话处理
-├── SSE 多会话通过 sessionId 隔离
+├── Streamable HTTP 多会话通过 sessionId 隔离
 ├── 广播消息给所有/部分会话
 └── 会话关闭时清理资源
 

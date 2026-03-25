@@ -1,6 +1,6 @@
 ﻿# 传输层详解
 
-> 本章目标：理解 MCP 的两种传输方式（stdio 和 SSE）的原理和实现细节。学完本章后，你应能根据场景选择合适的传输方式，并实现自己的传输层。
+> 本章目标：理解 MCP 的两种传输方式（stdio 和 Streamable HTTP）的原理和实现细节。学完本章后，你应能根据场景选择合适的传输方式，并实现自己的传输层。
 
 ---
 
@@ -16,12 +16,12 @@
 ├─────────────────────────────────────────────────────────────┤
 │  协议层：JSON-RPC 2.0 消息（{"jsonrpc":"2.0","id":1,...}）  │
 ├─────────────────────────────────────────────────────────────┤
-│  传输层：stdio / SSE / WebSocket / 自定义                    │
+│  传输层：stdio / Streamable HTTP / WebSocket / 自定义                    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 **分层的意义**：
-- 换传输方式时（如从 stdio 改成 SSE），不需要改上层代码
+- 换传输方式时（如从 stdio 改成 Streamable HTTP），不需要改上层代码
 - 可以在传输层添加 TLS、压缩、重试等逻辑
 - 测试时可以用 mock transport
 
@@ -30,8 +30,7 @@
 | 传输方式 | 原理 | 适用场景 |
 |---------|------|---------|
 | **stdio** | 进程 stdin/stdout | 本地工具、CLI 工具 |
-| **SSE** | HTTP POST + Server-Sent Events | 远程服务 |
-| **WebSocket** | 双向流 | 实时通信（未来可能支持） |
+| **Streamable HTTP** | HTTP POST + 流式响应 | 远程服务 |
 
 MCP 官方规范只要求实现 stdio，其他都是可选的。
 
@@ -346,78 +345,136 @@ export class StdioTransport extends EventEmitter implements Transport {
 
 ---
 
-## 3. SSE 传输详解
+## 3. Streamable HTTP 传输详解
 
-### 3.1 SSE 是什么？
+### 3.1 什么是 Streamable HTTP？
 
-SSE（Server-Sent Events）是一种基于 HTTP 的服务端推送技术。Server 可以通过 SSE 向 Client 推送消息，而 Client 通过 HTTP POST 发送请求。
+Streamable HTTP 是 MCP 官方推荐的远程传输方式，结合了 HTTP 请求-响应模型和流式响应能力。Server 可以通过分块传输编码（chunked transfer encoding）向 Client 推送消息。
 
-**与 WebSocket 的区别**：
+**核心特性**：
 
-| | SSE | WebSocket |
-|--|-----|-----------|
-| 方向 | 单向（Server → Client） | 双向 |
-| 连接 | HTTP/1.1 | 独立协议 |
-| 重连 | 自动 | 手动处理 |
-| 兼容性 | 较好 | 较好（但需要特殊处理） |
-| MCP 支持 | ✅ 官方支持 | 待定 |
+| 特性 | 说明 |
+|------|------|
+| **请求-响应** | Client 通过 HTTP POST 发送请求 |
+| **流式响应** | Server 通过 chunked transfer encoding 返回响应 |
+| **服务器推送** | Server 可以主动推送通知到 Client |
+| **会话恢复** | 支持断线重连后的会话恢复（Resumability） |
+| **协议头** | 支持版本协商和元数据传递 |
 
-### 3.2 SSE 的工作原理
+### 3.2 Streamable HTTP 的工作原理
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
-│                       SSE 传输流程                              │
+│                   Streamable HTTP 传输流程                      │
 ├────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  1. Client 建立 SSE 连接                                        │
-│     Client ──── GET /sse ────────────────────────────────────► │
-│                                                    Server       │
-│                ◄─────── SSE Stream (Content-Type: text/event)  │
-│                                                                 │
-│  2. Server 返回一个 endpoint URL                               │
-│     { "endpoint": "/mcp/23f8a2b3" }                            │
-│                                                                 │
-│  3. Client 通过 endpoint 发送请求                              │
-│     Client ──── POST /mcp/23f8a2b3 ──────────────────────────► │
+│  1. Client 发送请求到 /mcp 端点                                │
+│     Client ──── POST /mcp ──────────────────────────────────► │
+│               Content-Type: application/json                    │
+│               Accept: application/json, text/event-stream      │
 │               { "jsonrpc": "2.0", "id": 1, "method": "..." }  │
 │                                                                 │
-│  4. Server 通过 SSE 推送响应                                    │
-│                ◄─────── event: message ──────────────────────── │
-│                     data: {"id":1,"result":{...}}             │
+│  2. Server 开始流式响应                                         │
+│     ◄─── Transfer-Encoding: chunked ────────────────────────── │
+│     ◄─── 0010{"jsonrpc":"2.0","id":1,...} ─────────────────── │
+│     ◄─── 0011{"jsonrpc":"2.0","method":"notif",...} ────────── │
+│     ◄─── 0000 (chunked terminator) ────────────────────────── │
+│                                                                 │
+│  3. Server 主动推送通知                                         │
+│     ◄─── 0020{"jsonrpc":"2.0","method":"notifications/..."} ── │
 │                                                                 │
 └────────────────────────────────────────────────────────────────┘
 ```
 
-### 3.3 SSE 消息格式
+### 3.3 HTTP Header 约定
 
-**SSE 帧格式**：
+**请求头**：
+
+| Header | 说明 |
+|--------|------|
+| `Content-Type` | 必须为 `application/json` |
+| `Accept` | 客户端支持的响应格式 |
+| `MCP-Protocol-Version` | 协议版本（可选） |
+| `MCP-Session-Id` | 会话 ID，用于会话恢复（可选） |
+
+**响应头**：
+
+| Header | 说明 |
+|--------|------|
+| `Content-Type` | 响应内容类型 |
+| `Transfer-Encoding` | `chunked`（流式响应时） |
+| `MCP-Session-Id` | 服务端生成的会话 ID |
+
+### 3.4 流式响应格式
+
+**单次响应**（traditional）：
 
 ```
-event: message
-data: {"jsonrpc":"2.0","id":1,"result":{"tools":[]}}
+HTTP/1.1 200 OK
+Content-Type: application/json
 
-event: message
-data: {"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"..."}]}}
-
-event: notification
-data: {"jsonrpc":"2.0","method":"notifications/tools/list_changed"}
+{"jsonrpc":"2.0","id":1,"result":{"tools":[...]}}
 ```
 
-**SSE 事件类型**：
+**流式响应**（streaming）：
 
-| 事件类型 | 说明 |
-|---------|------|
-| `message` | JSON-RPC 响应或通知 |
-| `endpoint` | 新建 endpoint（用于多路复用） |
-| `error` | 错误事件 |
-| `close` | 连接关闭 |
+```
+HTTP/1.1 200 OK
+Content-Type: application/json
+Transfer-Encoding: chunked
 
-### 3.4 SSE 传输的 TypeScript 实现
+0010{"jsonrpc":"2.0","id":1,   # chunk size in hex + content
+0010"result":{"tools":[...]}}
+0000                          # chunked terminator (empty chunk)
+```
 
-**服务端 SSE 处理**：
+**混合模式**（响应 + 推送）：
+
+```
+HTTP/1.1 200 OK
+Content-Type: application/json
+Transfer-Encoding: chunked
+
+0010{"jsonrpc":"2.0","id":1,
+0010"result":{"content":[...]}}
+0028{"jsonrpc":"2.0","method":"notifications/tools/list_changed"}
+0000
+```
+
+### 3.5 会话恢复（Resumability）
+
+Streamable HTTP 支持会话恢复，Client 断开后可以重新连接并恢复状态：
 
 ```typescript
-// sse-server.ts
+// 会话恢复示例
+async function resumeSession(sessionId: string): Promise<void> {
+  const response = await fetch(`${baseUrl}/mcp`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "MCP-Session-Id": sessionId,
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      method: "ping",
+      id: 1,
+    }),
+  });
+
+  if (response.ok) {
+    console.log("Session resumed");
+  } else {
+    console.log("Session expired, creating new session");
+  }
+}
+```
+
+### 3.6 Streamable HTTP 的 TypeScript 实现
+
+**服务端实现**：
+
+```typescript
+// http-server.ts
 
 import { createServer, IncomingMessage, ServerResponse } from "http";
 
@@ -426,84 +483,31 @@ interface Session {
   response: ServerResponse;
 }
 
-export class SSEServer {
+export class StreamableHTTPServer {
   private sessions = new Map<string, Session>();
   private requestHandler: (message: JSONRPCMessage) => Promise<JSONRPCResponse | null>;
-  private server = createServer();
 
   constructor(requestHandler: (message: JSONRPCMessage) => Promise<JSONRPCResponse | null>) {
     this.requestHandler = requestHandler;
-    this.setupRoutes();
   }
 
-  private setupRoutes(): void {
-    this.server.on("request", async (req: IncomingMessage, res: ServerResponse) => {
-      const url = new URL(req.url!, `http://${req.headers.host}`);
+  async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    // 设置 CORS 头
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, MCP-Session-Id");
 
-      // SSE 连接端点
-      if (url.pathname === "/sse") {
-        await this.handleSSE(req, res);
-        return;
-      }
-
-      // MCP 请求端点
-      if (url.pathname.startsWith("/mcp/")) {
-        await this.handleMCP(req, res, url.pathname.slice(5));
-        return;
-      }
-
-      // 健康检查
-      if (url.pathname === "/health") {
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ status: "ok" }));
-        return;
-      }
-
-      res.writeHead(404);
+    // 处理 CORS 预检
+    if (req.method === "OPTIONS") {
+      res.writeHead(204);
       res.end();
-    });
-  }
+      return;
+    }
 
-  /**
-   * 处理 SSE 连接
-   */
-  private async handleSSE(req: IncomingMessage, res: ServerResponse): Promise<void> {
-    const sessionId = this.generateSessionId();
-
-    // 保存 session
-    this.sessions.set(sessionId, { id: sessionId, response: res });
-
-    // 设置 SSE 头
-    res.writeHead(200, {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      "Connection": "keep-alive",
-    });
-
-    // 发送 endpoint
-    this.sendEvent(res, "endpoint", { endpoint: `/mcp/${sessionId}` });
-
-    // 心跳保活
-    const heartbeat = setInterval(() => {
-      res.write(": heartbeat\n\n");
-    }, 30000);
-
-    // 清理
-    req.on("close", () => {
-      clearInterval(heartbeat);
-      this.sessions.delete(sessionId);
-    });
-  }
-
-  /**
-   * 处理 MCP 请求
-   */
-  private async handleMCP(req: IncomingMessage, res: ServerResponse, sessionId: string): Promise<void> {
-    const session = this.sessions.get(sessionId);
-
-    if (!session) {
-      res.writeHead(404, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Session not found" }));
+    // 只允许 POST
+    if (req.method !== "POST") {
+      res.writeHead(405);
+      res.end();
       return;
     }
 
@@ -514,80 +518,95 @@ export class SSEServer {
     }
     const body = Buffer.concat(chunks).toString();
 
-    let request: JSONRPCRequest;
+    let request: JSONRPCMessage;
     try {
       request = JSON.parse(body);
     } catch {
       res.writeHead(400, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Invalid JSON" }));
+      res.end(JSON.stringify({ error: { code: -32700, message: "Parse error" } }));
       return;
     }
 
-    // 处理请求
+    // 生成或获取会话 ID
+    const sessionId = this.getOrCreateSessionId(req);
+    const isStreaming = req.headers.accept?.includes("text/event-stream");
+
+    if (isStreaming) {
+      await this.handleStreamingRequest(req, res, sessionId, request);
+    } else {
+      await this.handleTraditionalRequest(req, res, request);
+    }
+  }
+
+  private async handleTraditionalRequest(
+    req: IncomingMessage,
+    res: ServerResponse,
+    request: JSONRPCMessage
+  ): Promise<void> {
     const response = await this.requestHandler(request);
 
-    // 通过 SSE 发送响应
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(response));
+  }
+
+  private async handleStreamingRequest(
+    req: IncomingMessage,
+    res: ServerResponse,
+    sessionId: string,
+    request: JSONRPCMessage
+  ): Promise<void> {
+    // 保存 session 用于后续推送
+    this.sessions.set(sessionId, { id: sessionId, response: res });
+
+    res.writeHead(200, {
+      "Content-Type": "application/json",
+      "Transfer-Encoding": "chunked",
+      "MCP-Session-Id": sessionId,
+    });
+
+    // 处理请求并分块发送响应
+    const response = await this.requestHandler(request);
     if (response) {
-      this.sendEvent(session.response, "message", response);
+      const responseText = JSON.stringify(response);
+      res.write(responseText.length.toString(16).padStart(4, "0"));
+      res.write(responseText);
     }
 
-    res.writeHead(202, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ ok: true }));
+    // 发送 chunked terminator
+    res.write("0000");
+    res.end();
   }
 
   /**
-   * 发送 SSE 事件
+   * 向指定 session 发送推送消息
    */
-  private sendEvent(response: ServerResponse, event: string, data: unknown): void {
-    response.write(`event: ${event}\n`);
-    response.write(`data: ${JSON.stringify(data)}\n\n`);
-  }
-
-  /**
-   * 向指定 session 发送消息（Server 主动推送）
-   */
-  sendToSession(sessionId: string, message: JSONRPCMessage): void {
+  sendNotification(sessionId: string, notification: JSONRPCNotification): void {
     const session = this.sessions.get(sessionId);
     if (session) {
-      this.sendEvent(session.response, "message", message);
+      const text = JSON.stringify(notification);
+      session.response.write(text.length.toString(16).padStart(4, "0"));
+      session.response.write(text);
     }
   }
 
-  /**
-   * 广播消息到所有 session
-   */
-  broadcast(message: JSONRPCMessage): void {
-    for (const session of this.sessions.values()) {
-      this.sendEvent(session.response, "message", message);
+  private getOrCreateSessionId(req: IncomingMessage): string {
+    const existingId = req.headers["mcp-session-id"];
+    if (typeof existingId === "string") {
+      return existingId;
     }
-  }
-
-  private generateSessionId(): string {
     return Math.random().toString(36).slice(2, 10);
-  }
-
-  listen(port: number): Promise<void> {
-    return new Promise((resolve) => {
-      this.server.listen(port, () => {
-        console.log(`SSE server listening on port ${port}`);
-        resolve();
-      });
-    });
   }
 }
 ```
 
-**客户端 SSE 处理**：
+**客户端实现**：
 
 ```typescript
-// sse-client.ts
+// http-client.ts
 
-import { EventSource, eventsourceloader } from "eventsource";
-
-export class SSEClient implements Transport {
-  private eventSource: EventSource | null = null;
-  private endpoint: string = "";
-  private sessionId: string = "";
+export class StreamableHTTPClient implements Transport {
+  private baseUrl: string;
+  private sessionId: string | null = null;
   private messageHandler: ((message: JSONRPCMessage) => void) | null = null;
   private errorHandler: ((error: Error) => void) | null = null;
   private closeHandler: (() => void) | null = null;
@@ -595,107 +614,139 @@ export class SSEClient implements Transport {
     resolve: (value: unknown) => void;
     reject: (reason: Error) => void;
   }>();
-  private requestId = 0;
 
-  constructor(private serverUrl: string) {}
-
-  async connect(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      // 建立 SSE 连接
-      this.eventSource = new EventSource(`${this.serverUrl}/sse`);
-
-      this.eventSource.onerror = (error) => {
-        this.errorHandler?.(new Error("SSE connection error"));
-        if (this.eventSource?.readyState === EventSource.CLOSED) {
-          this.closeHandler?.();
-        }
-      };
-
-      // 监听 endpoint 事件
-      this.eventSource.addEventListener("endpoint", (event) => {
-        const data = JSON.parse(event.data);
-        this.endpoint = data.endpoint;
-        this.sessionId = this.endpoint.split("/").pop() || "";
-        resolve();
-      });
-
-      // 监听 message 事件
-      this.eventSource.addEventListener("message", (event) => {
-        const message = JSON.parse(event.data);
-        this.handleMessage(message);
-      });
-
-      // 超时
-      setTimeout(() => {
-        reject(new Error("Connection timeout"));
-      }, 10000);
-    });
+  constructor(baseUrl: string) {
+    this.baseUrl = baseUrl.replace(/\/$/, "");
   }
 
-  /**
-   * 处理收到的 JSON-RPC 消息
-   */
-  private handleMessage(message: JSONRPCMessage): void {
-    // 有 id 的响应
-    if ("id" in message && (message as JSONRPCResponse).result !== undefined) {
-      const response = message as JSONRPCResponse;
-      const pending = this.pendingRequests.get(response.id);
-      if (pending) {
-        pending.resolve(response.result);
-        this.pendingRequests.delete(response.id);
-      }
-      return;
-    }
-
-    // 错误响应
-    if ("id" in message && (message as JSONRPCResponse).error) {
-      const response = message as JSONRPCResponse;
-      const pending = this.pendingRequests.get(response.id);
-      if (pending) {
-        pending.reject(new Error(response.error?.message));
-        this.pendingRequests.delete(response.id);
-      }
-      return;
-    }
-
-    // 通知（没有 id）
-    this.messageHandler?.(message);
+  async connect(): Promise<void> {
+    // Streamable HTTP 不需要预连接，延迟到发送第一个请求
   }
 
   async send(message: JSONRPCMessage): Promise<void> {
-    if (!this.endpoint) {
-      throw new Error("Not connected");
-    }
+    const id = "id" in message ? (message as JSONRPCRequest).id : null;
 
-    const id = ++this.requestId;
-
-    // 如果是请求，保存回调
-    if ("id" in message) {
-      const request = message as JSONRPCRequest;
-      const originalId = request.id;
-      request.id = id;
-
+    if (id !== null && id !== undefined) {
       return new Promise((resolve, reject) => {
         this.pendingRequests.set(id, { resolve, reject });
 
-        fetch(`${this.serverUrl}${this.endpoint}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(request),
-        }).then((res) => {
-          if (!res.ok) {
-            reject(new Error(`HTTP ${res.status}`));
-          }
-          resolve();
-        }).catch(reject);
+        this.sendRequest(message).catch(reject);
       });
     } else {
       // 通知不需要等待响应
-      await fetch(`${this.serverUrl}${this.endpoint}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(message),
-      });
+      await this.sendRequest(message);
+    }
+  }
+
+  private async sendRequest(message: JSONRPCMessage): Promise<void> {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "Accept": "application/json, text/event-stream",
+    };
+
+    if (this.sessionId) {
+      headers["MCP-Session-Id"] = this.sessionId;
+    }
+
+    const response = await fetch(`${this.baseUrl}/mcp`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(message),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    // 检查是否有 session ID
+    const newSessionId = response.headers.get("MCP-Session-Id");
+    if (newSessionId) {
+      this.sessionId = newSessionId;
+    }
+
+    // 处理流式响应
+    const contentType = response.headers.get("Content-Type") || "";
+    if (contentType.includes("text/event-stream")) {
+      await this.handleStreamingResponse(response);
+    } else {
+      const result = await response.json();
+      if ("id" in result && result.id !== undefined) {
+        const pending = this.pendingRequests.get(result.id);
+        if (pending) {
+          if (result.error) {
+            pending.reject(new Error(result.error.message));
+          } else {
+            pending.resolve(result.result);
+          }
+          this.pendingRequests.delete(result.id);
+        }
+      }
+    }
+  }
+
+  private async handleStreamingResponse(response: Response): Promise<void> {
+    const reader = response.body?.getReader();
+    if (!reader) return;
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        buffer = this.processBuffer(buffer);
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  }
+
+  private processBuffer(buffer: string): string {
+    // 处理 chunked 编码: size + content
+    while (buffer.length >= 4) {
+      const sizeHex = buffer.substring(0, 4);
+      const size = parseInt(sizeHex, 16);
+
+      if (size === 0) {
+        // chunked terminator
+        this.closeHandler?.();
+        return "";
+      }
+
+      const totalSize = 4 + size;
+      if (buffer.length < totalSize) break;
+
+      const content = buffer.substring(4, totalSize);
+      buffer = buffer.substring(totalSize);
+
+      try {
+        const message = JSON.parse(content);
+        this.handleMessage(message);
+      } catch {
+        // 忽略解析错误
+      }
+    }
+
+    return buffer;
+  }
+
+  private handleMessage(message: JSONRPCMessage): void {
+    if ("id" in message) {
+      const response = message as JSONRPCResponse;
+      const pending = this.pendingRequests.get(response.id);
+      if (pending) {
+        if (response.error) {
+          pending.reject(new Error(response.error.message));
+        } else {
+          pending.resolve(response.result);
+        }
+        this.pendingRequests.delete(response.id);
+      }
+    } else {
+      this.messageHandler?.(message);
     }
   }
 
@@ -712,10 +763,25 @@ export class SSEClient implements Transport {
   }
 
   async close(): Promise<void> {
-    this.eventSource?.close();
-    this.eventSource = null;
+    this.sessionId = null;
   }
 }
+```
+
+### 3.7 选择 Streamable HTTP 的场景
+
+```
+✅ 选 Streamable HTTP 如果：
+├── Server 是远程服务
+├── 需要被多个 Client 共用
+├── Server 是长期运行的服务
+├── 需要 Server 主动推送通知
+└── 需要会话恢复能力
+
+❌ 不选 Streamable HTTP 如果：
+├── Server 是本地工具
+├── 只需要同步请求-响应
+└── 部署简单（stdio 更适合）
 ```
 
 ---
@@ -739,20 +805,20 @@ export class SSEClient implements Transport {
 └── 需要 WebSocket 等高级特性
 ```
 
-### 4.2 选择 SSE 的场景
+### 4.2 选择 Streamable HTTP 的场景
 
 ```
-✅ 选 SSE 如果：
+✅ 选 Streamable HTTP 如果：
 ├── Server 是远程服务
 ├── 需要被多个 Client 共用
 ├── Server 是长期运行的服务
 ├── 需要 Server 主动推送通知
 └── 部署在有 HTTP 代理的环境
 
-❌ 不选 SSE 如果：
+❌ 不选 Streamable HTTP 如果：
 ├── Server 是本地工具
 ├── 只需要同步请求-响应
-├── 网络条件差（SSE 有重连延迟）
+├── 网络条件差（Streamable HTTP 有重连延迟）
 └── 需要双向通信（WebSocket 更合适）
 ```
 
@@ -770,10 +836,11 @@ export class SSEClient implements Transport {
 process.stderr.write(": heartbeat\n");
 ```
 
-**SSE 心跳**：
+**HTTP 心跳**：
 ```typescript
-// SSE 规范支持空行心跳
-res.write(": heartbeat\n\n");
+// HTTP 长连接需要保活，可以通过发送空的 chunked 块
+// 或者发送一个空的 JSON-RPC 通知
+res.write("0000"); // chunked terminator (空内容)
 ```
 
 ### 5.2 重连机制
@@ -841,7 +908,7 @@ stdio 传输
 ├── 适合本地工具、CLI 工具
 └── 安全、低延迟、但不能跨网络
 
-SSE 传输
+Streamable HTTP 传输
 ├── HTTP POST 发送请求
 ├── Server-Sent Events 接收响应
 ├── 适合远程服务、需要主动推送
@@ -849,7 +916,7 @@ SSE 传输
 
 选择原则
 ├── 本地工具 → stdio
-├── 远程服务 → SSE
+├── 远程服务 → Streamable HTTP
 └── 实时双向 → WebSocket（未来）
 ```
 

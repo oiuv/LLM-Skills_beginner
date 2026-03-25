@@ -12,7 +12,7 @@ PART1: MCP 协议层（理论基础）
 ├── 02-json-rpc-spec.md        JSON-RPC 2.0 完整规范
 ├── 03-message-types.md        MCP 消息类型详解
 ├── 04-capabilities.md          Capability 协商机制
-├── 05-transport-layer.md       stdio 和 SSE 传输层
+├── 05-transport-layer.md       stdio 和 Streamable HTTP 传输层
 └── 06-error-handling.md       错误码体系与调试
 
 PART2: MCP Server 开发
@@ -124,7 +124,7 @@ LLM-Skills_beginner/
 
 - **语言**：TypeScript / Node.js
 - **协议**：JSON-RPC 2.0
-- **传输**：stdio、SSE
+- **传输**：stdio、Streamable HTTP
 - **SDK**：@modelcontextprotocol/sdk
 
 ---

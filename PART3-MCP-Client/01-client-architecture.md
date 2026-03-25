@@ -69,16 +69,16 @@
 │  ┌─────────────────────────────────────────────────────────┐   │
 │  │                   Transport Layer                         │   │
 │  │                                                          │   │
-│  │   ┌─────────┐    ┌─────────┐    ┌─────────┐           │   │
-│  │   │  stdio  │    │   SSE   │    │ 自定义  │           │   │
-│  │   │  Client │    │  Client │    │ Handler │           │   │
-│  │   └────┬────┘    └────┬────┘    └────┬────┘           │   │
-│  │        │              │              │                  │   │
-│  │        └──────────────┴──────────────┘                  │   │
-│  │                         │                                 │   │
-│  └─────────────────────────┼─────────────────────────────────┘   │
-│                            │                                     │
-│                            ▼                                     │
+│  │   ┌─────────┐    ┌─────────────────┐    ┌─────────┐   │   │
+│  │   │  stdio  │    │ Streamable HTTP │    │ 自定义  │   │   │
+│  │   │  Client │    │     Client      │    │ Handler │   │   │
+│  │   └────┬────┘    └────────┬────────┘    └────┬────┘   │   │
+│  │        │                   │                  │         │   │
+│  │        └───────────────────┴──────────────────┘         │   │
+│  │                            │                               │   │
+│  └────────────────────────────┼───────────────────────────────┘   │
+│                               │                                     │
+│                               ▼                                     │
 │  ┌─────────────────────────────────────────────────────────┐   │
 │  │                   Protocol Layer                          │   │
 │  │                                                          │   │
@@ -118,7 +118,7 @@
 
 | 组件 | 职责 | 关键实现 |
 |------|------|---------|
-| **Transport Layer** | 与 Server 通信 | StdioClient、SSEClient |
+| **Transport Layer** | 与 Server 通信 | StdioClient、StreamableHTTPClient |
 | **Protocol Layer** | JSON-RPC 编解码 | RequestBuilder、ResponseParser |
 | **Connection Manager** | 连接状态、重连 | connect()、reconnect() |
 | **Request Manager** | 请求分发、超时 | send()、cancel() |
@@ -244,7 +244,7 @@ class ConnectionManager {
       id: 0,
       method: "initialize",
       params: {
-        protocolVersion: "2024-11-05",
+        protocolVersion: "2025-11-25",
         capabilities: this.getClientCapabilities(),
         clientInfo: {
           name: "my-mcp-client",
@@ -689,13 +689,13 @@ class MCPClientFactory {
   }
 
   /**
-   * 创建 SSE Client
+   * 创建 Streamable HTTP Client
    */
-  static createSSEClient(
+  static createStreamableHTTPClient(
     serverUrl: string,
     clientOptions: ClientConfig = {}
   ): MCPClient {
-    const transport = new SSEClientTransport({
+    const transport = new StreamableHTTPClientTransport({
       url: serverUrl
     });
 
@@ -711,8 +711,8 @@ async function main() {
   // stdio 方式
   const stdioClient = MCPClientFactory.createStdioClient("node", ["./server.js"]);
 
-  // SSE 方式
-  const sseClient = MCPClientFactory.createSSEClient("http://localhost:3000");
+  // Streamable HTTP 方式
+  const httpClient = MCPClientFactory.createStreamableHTTPClient("http://localhost:3000");
 
   await stdioClient.connect();
   const tools = await stdioClient.listTools();
@@ -794,7 +794,218 @@ class ToolManager {
 
 ---
 
-## 7. 本章小结
+## 7. Client 原语（Primitives）
+
+Client 原语是 MCP 协议中由 Client 实现的能力，允许 Server 请求 Client 执行特定操作。
+
+### 7.1 Roots（文件系统根目录）
+
+**用途**：声明 Client 可以访问的根目录列表，Server 可以据此判断文件访问权限。
+
+```typescript
+// Client 在握手中声明 roots capability
+interface ClientCapabilities {
+  roots?: {
+    listChanged?: boolean;  // 是否支持 roots/listChanged 通知
+  };
+}
+
+// roots/list 请求
+interface RootsListRequest {
+  method: "roots/list";
+  params: {};
+}
+
+// roots/list 响应
+interface RootsListResponse {
+  roots: {
+    uri: string;           // 根目录 URI，如 file:///home/user/project
+    name?: string;         // 可选的显示名称
+  }[];
+}
+```
+
+**使用场景**：
+- Server 需要知道可以安全访问哪些目录
+- 文件操作工具需要判断路径是否在允许范围内
+- AI 助手需要知道工作区的根目录位置
+
+```typescript
+// Client 实现
+class RootsManager {
+  private roots: { uri: string; name?: string }[] = [];
+
+  async listRoots(): Promise<{ roots: { uri: string; name?: string }[] }> {
+    return { roots: this.roots };
+  }
+
+  setRoots(roots: { uri: string; name?: string }[]): void {
+    this.roots = roots;
+  }
+}
+```
+
+### 7.2 Sampling（AI 采样）
+
+**用途**：允许 Server 请求 Client 的 LLM 生成内容。Server 可以借助 AI 能力来处理复杂任务。
+
+```typescript
+// Client 声明 sampling capability
+interface ClientCapabilities {
+  sampling?: {};  // 支持 sampling/createMessage
+}
+
+// sampling/createMessage 请求
+interface SamplingCreateMessageRequest {
+  method: "sampling/createMessage";
+  params: {
+    messages: Message[];
+    systemPrompt?: string;
+    temperature?: number;
+    maxTokens?: number;
+    stopSequences?: string[];
+  };
+}
+
+interface Message {
+  role: "user" | "assistant";
+  content: Content;
+}
+
+interface Content {
+  type: "text" | "image";
+  text?: string;
+  data?: string;       // base64 编码的图像数据
+  mimeType?: string;   // 图像 MIME 类型
+}
+
+// sampling/createMessage 响应
+interface SamplingCreateMessageResponse {
+  content: Content;
+  model: string;       // 实际使用的模型
+  stopReason?: string; // 生成停止原因
+}
+```
+
+**使用场景**：
+- Server 收到一段文本，需要 AI 总结或翻译
+- Server 需要 AI 帮忙格式化输出
+- Server 请求 LLM 生成推荐内容
+
+```typescript
+// Client 实现
+class SamplingManager {
+  async createMessage(
+    params: SamplingCreateMessageRequest["params"]
+  ): Promise<SamplingCreateMessageResponse> {
+    // 调用 LLM API 生成内容
+    const response = await this.llm.complete({
+      messages: params.messages,
+      systemPrompt: params.systemPrompt,
+      temperature: params.temperature,
+      maxTokens: params.maxTokens
+    });
+
+    return {
+      content: {
+        type: "text",
+        text: response.text
+      },
+      model: response.model,
+      stopReason: response.stopReason
+    };
+  }
+}
+```
+
+### 7.3 Elicitation（征求用户输入）
+
+**用途**：允许 Server 请求用户确认或输入。这是 Server 与用户交互的主要机制。
+
+```typescript
+// Client 声明 elicitation capability
+interface ClientCapabilities {
+  elicitation?: {
+    inputRequest?: boolean;  // 是否支持输入请求
+  };
+}
+
+// elicitation/requestInput 请求
+interface ElicitationRequestInputRequest {
+  method: "elicitation/requestInput";
+  params: {
+    message: string;                    // 显示给用户的提示信息
+    requestedSchema: Schema;             // 期望的用户输入格式
+    defaultValue?: unknown;              // 可选的默认值
+    suppressAfter?: number;              // 多长时间后自动取消（秒）
+  };
+}
+
+interface Schema {
+  type?: string;
+  properties?: Record<string, Schema>;
+  required?: string[];
+  items?: Schema;
+  enum?: unknown[];
+  default?: unknown;
+}
+
+// elicitation/requestInput 响应
+interface ElicitationRequestInputResponse {
+  values: Record<string, unknown>;  // 用户输入的值
+  cancelled: boolean;              // 用户是否取消
+}
+```
+
+**使用场景**：
+- Server 需要用户确认危险操作（如删除文件）
+- Server 需要用户提供额外信息
+- Server 需要用户在多个选项中做选择
+
+```typescript
+// Client 实现
+class ElicitationManager {
+  async requestInput(
+    params: ElicitationRequestInputRequest["params"]
+  ): Promise<ElicitationRequestInputResponse> {
+    // 显示 UI 弹窗获取用户输入
+    const result = await this.ui.showInputDialog({
+      message: params.message,
+      schema: params.requestedSchema,
+      defaultValue: params.defaultValue,
+      timeout: params.suppressAfter ? params.suppressAfter * 1000 : undefined
+    });
+
+    return {
+      values: result.values,
+      cancelled: result.cancelled
+    };
+  }
+}
+```
+
+### 7.4 Client 原语与 Server 能力的对应
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                        MCP 能力对应关系                             │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  Server 能力              │  Client 原语                          │
+│  ────────────────────────┼─────────────────────────────         │
+│  tools/call              │  —                                   │
+│  resources/read         │  —                                   │
+│  prompts/get            │  —                                   │
+│  sampling/createMessage │  ← Client 提供 sampling 能力           │
+│  elicitation/requestInput│ ← Client 提供 elicitation 能力       │
+│  —                       │  roots/list（Client 声明）           │
+│                                                                   │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 8. 本章小结
 
 ```
 Client 架构核心要点
@@ -818,6 +1029,11 @@ Client 架构核心要点
 ├── 超时控制
 ├── 取消请求
 └── 通知分发
+
+Client 原语
+├── Roots：声明可访问的文件系统根目录
+├── Sampling：Server 请求 Client 调用 LLM
+└── Elicitation：Server 请求用户确认或输入
 
 最佳实践
 ├── 连接管理器统一管理连接状态

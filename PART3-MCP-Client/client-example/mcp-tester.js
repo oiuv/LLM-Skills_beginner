@@ -524,7 +524,7 @@ class MCPTester {
     console.log("=".repeat(60));
     console.log(`名称: ${this.serverInfo?.name || "unknown"}`);
     console.log(`版本: ${this.serverInfo?.version || "unknown"}`);
-    console.log(`协议版本: 2024-11-05`);
+    console.log(`协议版本: 2025-11-25`);
     console.log();
 
     // 获取能力信息
@@ -697,16 +697,19 @@ HTTP 传输类型说明:
   }
 
 示例:
-  # 测试本地 STDIO Server
-  node mcp-tester.js --stdio --command "node" --args "server.js"
+  # 测试 context7-mcp (npx 方式)
+  node mcp-tester.js --stdio --command "npx" --args "@upstash/context7-mcp"
+
+  # 测试 windows-mcp (uvx 方式)
+  node mcp-tester.js --stdio --command "uvx" --args "windows-mcp"
 
   # 测试 Streamable HTTP（官方推荐）
   node mcp-tester.js --http --url "https://api.example.com/mcp" --token "xxx"
 
-  # 测试 SSE（传统方式）
-  node mcp-tester.js --http --url "https://api.example.com/mcp/sse" --token "xxx" --http-type sse
+  # 测试 context7.com 在线服务
+  node mcp-tester.js --http --url "https://mcp.context7.com/mcp"
 
-  # 测试智谱 AI（使用 http 类型）
+  # 测试智谱 AI（streamable-http 出错时的备选模式）
   node mcp-tester.js --http --url "https://open.bigmodel.cn/api/mcp/xxx/mcp" --token "xxx" --http-type http
 
   # 测试带环境变量的 Server
@@ -821,7 +824,15 @@ async function main() {
 
     await tester.mainMenu();
   } catch (error) {
-    console.error("\n❌ 错误:", error.message);
+    console.error("\n❌ 连接错误:", error.message);
+
+    // 针对智谱 AI 服务器的特别提示
+    if (finalOptions.mode === "http" && finalOptions.httpType === "streamable-http") {
+      console.error("\n💡 提示：如果连接智谱 AI (bigmodel.cn) 的 MCP 服务器失败，");
+      console.error("   请尝试使用 http 模式（简化版 streamable-http）：");
+      console.error(`   node mcp-tester.js --http --url "${finalOptions.url}" --token "your_token" --http-type http`);
+    }
+
     console.error(error.stack);
   } finally {
     await tester.disconnect();

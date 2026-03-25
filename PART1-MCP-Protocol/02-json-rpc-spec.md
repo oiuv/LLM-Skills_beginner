@@ -649,12 +649,13 @@ console.log("Sending:", JSON.stringify(response, null, 2));
 
 **技巧 2：用 curl 测试 stdio**
 
-stdio 是进程间通信，不支持直接用 curl。但如果用 SSE 传输：
+stdio 是进程间通信，不支持直接用 curl。但如果用 Streamable HTTP 传输：
 
 ```bash
-# 测试 MCP Server（SSE 模式）
+# 测试 MCP Server（HTTP 模式）
 curl -X POST http://localhost:3000/mcp \
   -H "Content-Type: application/json" \
+  -H "Mcp-Version: 2025-11-25" \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}'
 ```
 

@@ -105,10 +105,10 @@ MCP Server 是外部工具和 AI 模型之间的桥梁：
 │  ┌─────────────────────────────────────────────────────────┐   │
 │  │                   Transport Layer                        │   │
 │  │                                                          │   │
-│  │   ┌─────────┐    ┌─────────┐    ┌─────────┐           │   │
-│  │   │  stdio  │    │   SSE   │    │ 自定义  │           │   │
-│  │   │Handler  │    │Handler  │    │ Handler │           │   │
-│  │   └────┬────┘    └────┬────┘    └────┬────┘           │   │
+│  │   ┌─────────┐    ┌─────────────────┐    ┌─────────┐  │   │
+│  │   │  stdio  │    │ StreamableHTTP  │    │ 自定义  │  │   │
+│  │   │Handler  │    │    Handler      │    │ Handler │  │   │
+│  │   └────┬────┘    └────────┬────────┘    └────┬────┘  │   │
 │  │        │              │              │                  │   │
 │  │        └──────────────┴──────────────┘                  │   │
 │  │                         │                                 │   │
@@ -154,7 +154,7 @@ MCP Server 是外部工具和 AI 模型之间的桥梁：
 
 | 组件 | 职责 | 关键实现 |
 |------|------|---------|
-| **Transport Layer** | 接收/发送原始字节流 | StdioTransport、SSETransport |
+| **Transport Layer** | 接收/发送原始字节流 | StdioTransport、StreamableHTTPTransport |
 | **Protocol Handler** | 解析/构造 JSON-RPC 消息 | JSONRPCParser、RequestRouter |
 | **Request Handlers** | 处理特定类型的请求 | InitializeHandler、ToolsHandler |
 | **Tools Manager** | 管理工具注册和执行 | registerTool()、callTool() |
@@ -316,7 +316,7 @@ class MCPServer {
 Transport Layer 负责与外部通信，是 Server 的最外层：
 
 **职责**：
-- 启动 Server 进程（stdio）或监听网络端口（SSE）
+- 启动 Server 进程（stdio）或监听网络端口（Streamable HTTP）
 - 接收来自 Client 的字节流
 - 将字节流分割成完整的消息
 - 将响应发送回 Client
@@ -665,7 +665,7 @@ class MCPServer {
 
     // 返回 Server 的 Capability
     const result = {
-      protocolVersion: "2024-11-05",
+      protocolVersion: "2025-11-25",
       capabilities: this.buildCapabilities(),
       serverInfo: {
         name: this.name,
@@ -858,13 +858,187 @@ export class MCPServer {
 
 ---
 
-## 7. 本章小结
+## 7. 多服务器协作（Multi-Server Collaboration）
+
+MCP 的真正力量在于多个服务器可以协同工作，组合各自的专业能力。
+
+### 7.1 协作模式
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                      MCP Host                                     │
+│                                                                   │
+│   ┌─────────────────────────────────────────────────────────┐   │
+│   │              MCP Client                                   │   │
+│   │                                                          │   │
+│   │   Client A  ──►  Travel Server（航班、酒店）              │   │
+│   │   Client B  ──►  Weather Server（天气）                    │   │
+│   │   Client C  ──►  Calendar Server（日历、邮件）             │   │
+│   │                                                          │   │
+│   └─────────────────────────────────────────────────────────┘   │
+│                                                                   │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### 7.2 典型场景：AI 旅行规划助手
+
+考虑一个个性化的 AI 旅行规划应用，连接了三个服务器：
+
+**1. Travel Server** - 处理航班、酒店和行程
+**2. Weather Server** - 提供气候数据和预报
+**3. Calendar/Email Server** - 管理日程和通信
+
+### 7.3 完整协作流程
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                    多服务器协作流程                                 │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  1️⃣ 用户选择一个提示词模板                                        │
+│      prompts/get("plan-vacation", {                              │
+│        destination: "Barcelona",                                 │
+│        departure_date: "2024-06-15",                             │
+│        return_date: "2024-06-22",                                │
+│        budget: 3000                                              │
+│      })                                                           │
+│                                                                   │
+│  2️⃣ 用户选择要包含的资源                                          │
+│      • calendar://my-calendar/June-2024（来自 Calendar Server）  │
+│      • travel://preferences/europe（来自 Travel Server）        │
+│      • travel://past-trips/Spain-2023（来自 Travel Server）     │
+│                                                                   │
+│  3️⃣ AI 读取所有选择的资源获取上下文                               │
+│                                                                   │
+│  4️⃣ AI 执行工具完成任务                                          │
+│                                                                   │
+│      Travel Server:                                              │
+│      • searchFlights() - 查询航班                                │
+│                                                                   │
+│      Weather Server:                                             │
+│      • checkWeather() - 获取天气预报                             │
+│                                                                   │
+│      Travel Server:                                              │
+│      • bookHotel() - 预订酒店                                    │
+│      • createCalendarEvent() - 添加日程                          │
+│                                                                   │
+│      Calendar Server:                                            │
+│      • sendEmail() - 发送确认邮件                                │
+│                                                                   │
+│  5️⃣ 用户审批高风险操作（如预订）                                  │
+│                                                                   │
+│  6️⃣ 任务完成：通过多个 MCP 服务器，用户完成了一次旅行规划          │
+│                                                                   │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### 7.4 多服务器实现示例
+
+```typescript
+// Host 应用程序同时管理多个服务器连接
+
+class MCPHost {
+  private clients: Map<string, MCPClient> = new Map();
+
+  async initialize() {
+    // 连接多个服务器
+    this.clients.set("travel", await this.connectServer("travel-server"));
+    this.clients.set("weather", await this.connectServer("weather-server"));
+    this.clients.set("calendar", await this.connectServer("calendar-server"));
+  }
+
+  // 发现所有可用工具
+  async discoverAllTools() {
+    const allTools: Tool[] = [];
+
+    for (const [name, client] of this.clients) {
+      const tools = await client.listTools();
+      // 为工具添加服务器前缀以避免冲突
+      for (const tool of tools) {
+        allTools.push({
+          ...tool,
+          name: `${name}_${tool.name}`  // e.g., "travel_searchFlights"
+        });
+      }
+    }
+
+    return allTools;
+  }
+
+  // 调用指定服务器的工具
+  async callTool(serverName: string, toolName: string, args: unknown) {
+    const client = this.clients.get(serverName);
+    if (!client) {
+      throw new Error(`Unknown server: ${serverName}`);
+    }
+    return client.callTool(toolName, args);
+  }
+}
+```
+
+### 7.5 跨服务器资源组合
+
+```typescript
+// AI 可以组合来自多个服务器的资源和工具
+
+// 上下文包含多个服务器的资源
+const context = {
+  resources: [
+    // 来自 Calendar Server
+    await calendarClient.readResource("calendar://my-calendar/June-2024"),
+    // 来自 Travel Server
+    await travelClient.readResource("travel://preferences/europe"),
+    await travelClient.readResource("travel://past-trips/Spain-2023"),
+  ],
+  tools: [
+    // 来自 Travel Server
+    "travel:searchFlights",
+    "travel:bookHotel",
+    // 来自 Weather Server
+    "weather:getForecast",
+    // 来自 Calendar Server
+    "calendar:createEvent",
+    "calendar:sendEmail"
+  ]
+};
+```
+
+### 7.6 服务器发现与能力协商
+
+```typescript
+// 每个服务器声明自己的能力
+const serverCapabilities = {
+  travel: {
+    tools: { listChanged: true },
+    resources: { subscribe: true }
+  },
+  weather: {
+    tools: {}
+  },
+  calendar: {
+    tools: {},
+    elicitation: { inputRequest: true }
+  }
+};
+
+// Host 根据能力决定如何使用每个服务器
+for (const [serverName, capabilities] of Object.entries(serverCapabilities)) {
+  if (capabilities.elicitation?.inputRequest) {
+    // 这个服务器支持用户输入请求，可以在需要时使用
+    enableUserInputFor(serverName);
+  }
+}
+```
+
+---
+
+## 8. 本章小结
 
 ```
 Server 架构核心要点
 
 核心组件
-├── Transport Layer：与外部通信（stdio/SSE）
+├── Transport Layer：与外部通信（stdio/Streamable HTTP）
 ├── Protocol Handler：JSON-RPC 解析和构造
 ├── Request Handlers：处理各类请求
 ├── Tools Manager：工具注册和执行

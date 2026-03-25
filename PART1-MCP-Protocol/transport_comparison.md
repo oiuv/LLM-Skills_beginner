@@ -1,19 +1,20 @@
-# MCP 传输模式对比：STDIO vs SSE
+# MCP 传输模式对比：STDIO vs Streamable HTTP
 
 > 深入理解两种传输模式的区别和适用场景
 
 ## 快速对比
 
-| 特性 | STDIO | SSE |
-|------|-------|-----|
+| 特性 | STDIO | Streamable HTTP |
+|------|-------|-----------------|
 | **通信范围** | 本机进程间 | 网络（可跨机器） |
-| **底层协议** | 标准输入输出 | HTTP + Server-Sent Events |
+| **底层协议** | 标准输入输出 | HTTP + Chunked Transfer |
 | **连接方式** | 父子进程 | HTTP 长连接 |
 | **Server 推送** | ❌ 不支持 | ✅ 支持 |
 | **并发能力** | 低（单连接） | 高（多连接） |
 | **部署复杂度** | 低 | 中等 |
 | **延迟** | 极低 | 低（网络延迟） |
 | **安全性** | 高（进程边界） | 需额外配置（HTTPS/认证） |
+| **会话恢复** | ❌ 不支持 | ✅ 支持 |
 
 ## 详细对比
 
@@ -33,20 +34,22 @@
 - 进程终止时连接自动断开
 ```
 
-#### SSE：网络通信
+#### Streamable HTTP：网络通信
 
 ```
 ┌─────────────┐      HTTP POST         ┌─────────────┐
 │   Client    │  ───────────────────►  │   Server    │
-│             │                        │             │
-│             │  ◄──────────────────   │             │
-└─────────────┘      SSE Stream        └─────────────┘
+│             │   (发送请求)            │             │
+│             │ ◄──────────────────    │             │
+└─────────────┘   Chunked Stream       └─────────────┘
+                    (接收响应)
 
 特点：
 - Client 和 Server 是独立进程
 - 通过 HTTP 协议通信
 - 可以跨机器部署
 - Server 可以主动推送消息
+- 支持会话恢复（Resumability）
 ```
 
 ### 2. 消息流程对比
@@ -65,18 +68,33 @@ process.stdin.flush()
 response = process.stdout.readline()
 ```
 
-#### SSE 流程
+#### Streamable HTTP 流程
 
 ```python
-# 1. 建立 SSE 连接（接收消息）
-response = requests.get('/sse', stream=True)
+import requests
 
-# 2. 发送请求
-requests.post('/message', json=request, headers={'Session-Id': session_id})
+# 1. 创建会话并发送请求
+session_id = None
 
-# 3. 从 SSE 流接收响应
+# 2. 发送 HTTP POST 请求
+response = requests.post(
+    '/mcp',
+    json=request,
+    headers={
+        'Mcp-Version': '2025-11-25',
+        'Mcp-Session-Id': session_id or ''
+    },
+    stream=True
+)
+
+# 3. 获取会话 ID
+session_id = response.headers.get('Mcp-Session-Id')
+
+# 4. 从分块响应流读取
 for line in response.iter_lines():
-    message = parse_sse_line(line)
+    if line:
+        message = json.loads(line)
+        handle_message(message)
 ```
 
 ### 3. 代码复杂度对比
@@ -95,26 +113,42 @@ result = handle_request(request)
 print(json.dumps(result), flush=True)
 ```
 
-#### SSE Server（较复杂）
+#### Streamable HTTP Server（较复杂）
 
 ```python
 from flask import Flask, Response
 
 app = Flask(__name__)
 
-@app.route('/sse')
-def sse():
-    def generate():
-        while True:
-            msg = get_message()
-            yield f"data: {json.dumps(msg)}\n\n"
-    return Response(generate(), mimetype='text/event-stream')
+@app.route('/mcp', methods=['POST'])
+def mcp_endpoint():
+    session_id = request.headers.get('Mcp-Session-Id')
+    mcp_version = request.headers.get('Mcp-Version', '2025-11-25')
 
-@app.route('/message', methods=['POST'])
-def message():
-    request = request.get_json()
-    # 异步处理，通过 SSE 返回结果
-    return {'status': 'ok'}
+    # 获取或创建会话
+    session = get_or_create_session(session_id)
+
+    # 处理请求
+    request_data = request.get_json()
+    result = handle_request(session, request_data)
+
+    # 使用分块传输返回响应
+    def generate():
+        yield json.dumps(result).encode() + b'\n'
+        # 可以持续发送更多消息
+        while True:
+            msg = session.get_message()
+            yield json.dumps(msg).encode() + b'\n'
+
+    return Response(
+        generate(),
+        mimetype='application/json',
+        headers={
+            'Mcp-Session-Id': session.id,
+            'Mcp-Version': PROTOCOL_VERSION,
+            'Transfer-Encoding': 'chunked'
+        }
+    )
 ```
 
 ### 4. 适用场景
@@ -126,19 +160,22 @@ def message():
 - ✅ 简单的命令行工具
 - ✅ 需要进程隔离
 - ✅ 对延迟要求极高
+- ✅ 不需要跨网络访问
 
-#### 选择 SSE 当：
+#### 选择 Streamable HTTP 当：
 
 - ✅ 需要跨机器通信
 - ✅ Web 应用集成
 - ✅ 需要 Server 主动推送
 - ✅ 高并发场景
 - ✅ 微服务架构
+- ✅ 生产环境部署
+- ✅ 需要会话恢复能力
 
 ### 5. 性能对比
 
-| 指标 | STDIO | SSE |
-|------|-------|-----|
+| 指标 | STDIO | Streamable HTTP |
+|------|-------|-----------------|
 | 延迟 | < 1ms | 1-10ms（本地）|
 | 吞吐量 | ~1000 msg/s | ~10000 msg/s |
 | 内存占用 | 低 | 中等 |
@@ -162,18 +199,50 @@ except BrokenPipeError:
     handle_disconnect()
 ```
 
-#### SSE
+#### Streamable HTTP
 
 ```python
-# 检测连接状态
+# 检测响应状态
 if response.status_code != 200:
     # 连接失败
     reconnect()
 
+# 检查协议版本
+if response.headers.get('Mcp-Version') != PROTOCOL_VERSION:
+    raise ProtocolVersionMismatch()
+
 # 心跳检测
 if time.time() - last_ping > timeout:
     # 连接超时
-    reconnect()
+    reconnect_with_session(session_id)
+```
+
+## HTTP 头约定
+
+Streamable HTTP 使用以下 HTTP 头：
+
+| 头名称 | 说明 | 示例 |
+|--------|------|------|
+| `Mcp-Version` | 协议版本 | `2025-11-25` |
+| `Mcp-Session-Id` | 会话标识符 | `uuid-string` |
+| `Transfer-Encoding` | 传输编码 | `chunked` |
+
+## 会话恢复机制
+
+Streamable HTTP 支持会话恢复，当客户端重连时可以继续使用之前的会话：
+
+```python
+# 客户端重连时
+session_id = previous_session_id  # 之前保存的会话 ID
+
+response = requests.post(
+    '/mcp',
+    headers={'Mcp-Session-Id': session_id},
+    ...
+)
+
+# 如果会话仍然有效，服务器继续使用该会话
+# 如果会话已过期，服务器创建新会话并返回新的 Session-Id
 ```
 
 ## 学习建议
@@ -185,9 +254,9 @@ if time.time() - last_ping > timeout:
    - 无需网络知识
    - 适合本地调试
 
-2. **再学 SSE**
-   - 理解网络通信概念
-   - 学习 HTTP 和 SSE 协议
+2. **再学 Streamable HTTP**
+   - 理解 HTTP 协议概念
+   - 学习分块传输编码
    - 掌握异步编程
 
 ### 实践建议
@@ -212,10 +281,10 @@ if time.time() - last_ping > timeout:
 | 场景 | 推荐模式 |
 |------|---------|
 | 本地开发 | STDIO |
-| 生产部署 | SSE |
+| 生产部署 | Streamable HTTP |
 | 命令行工具 | STDIO |
-| Web 服务 | SSE |
-| 跨机器通信 | SSE |
+| Web 服务 | Streamable HTTP |
+| 跨机器通信 | Streamable HTTP |
 | 低延迟要求 | STDIO |
 
 两种模式各有优势，理解它们的区别有助于在实际项目中做出正确选择。

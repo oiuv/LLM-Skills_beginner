@@ -21,7 +21,7 @@
 │                                                                   │
 │  3. Transport 建立连接                                           │
 │     stdio: 启动子进程                                           │
-│     SSE: 建立 HTTP 连接                                          │
+│     Streamable HTTP: 建立 HTTP 连接                               │
 │                                                                   │
 │  4. 发送 initialize                                              │
 │     CONNECTING ──► INITIALIZING                                  │

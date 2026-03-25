@@ -74,7 +74,7 @@ MCP 协议可以分为三层，理解每一层的职责很重要：
 ├─────────────────────────────────────────────────────────────┤
 │                    Transport Layer                          │
 │                                                             │
-│   stdio（标准输入/输出）     SSE（HTTP + Server-Sent Events） │
+│   stdio（标准输入/输出）     Streamable HTTP（HTTP + 分块传输） │
 │   进程间通信                 跨网络通信                       │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -154,13 +154,15 @@ MCP Server（天气服务）
 
 ---
 
-## 4. 四种核心能力
+## 4. 六种核心能力
 
-MCP 定义了 4 种能力（称为"原语"），Server 通过声明 Capability 来告知 Client 它支持哪些：
+MCP 定义了 6 种能力（称为"原语"），Server 通过声明 Capability 来告知 Client 它支持哪些：
 
 ### 4.1 Tools（工具）— AI 可以主动调用
 
 **是什么**：Server 暴露的一组可执行功能，AI 模型可以像调用函数一样调用它们。
+
+**控制者**：**Model（AI 模型）** — AI 模型可以主动发现和调用工具
 
 **典型场景**：
 - 查天气、搜文件、调 API
@@ -172,9 +174,43 @@ Client ──tools/list──► Server    // 获取可用工具列表
 Client ──tools/call──► Server    // 调用具体工具
 ```
 
-### 4.2 Resources（资源）— AI 可以读取
+### 4.2 Sampling（采样）— Server 让 AI 执行
+
+**是什么**：Server 反向请求 AI 能力，让 Host 的 LLM 生成内容。
+
+**典型场景**：
+- Server 收到一段文本，需要 AI 总结
+- Server 需要 AI 帮忙格式化输出
+- Server 请求 LLM 生成推荐内容
+
+**消息流**：
+```
+Server ──sampling/createMessage──► Client    // 请求 LLM 生成
+Client ◄──LLM 响应── Client
+```
+
+**这是一个高级特性**：大多数 MCP Server 不需要实现 Sampling。
+
+### 4.3 Elicitation（征求）— Server 请求用户确认
+
+**是什么**：Server 可以请求用户对某个操作进行确认或输入。
+
+**典型场景**：
+- Server 需要用户确认危险操作
+- Server 需要用户提供额外信息
+- Server 需要用户做选择
+
+**消息流**：
+```
+Server ──elicitation/requestInput──► Client    // 请求用户输入
+Client ◄──用户响应── Client
+```
+
+### 4.4 Resources（资源）— AI 可以读取
 
 **是什么**：Server 提供的数据内容，AI 可以读取但不能执行。
+
+**控制者**：**Application（应用程序）** — 由应用程序决定如何获取、处理和使用资源
 
 **典型场景**：
 - 用户配置文件
@@ -189,15 +225,19 @@ Client ──resources/read──► Server   // 读取资源内容
 
 **注意**：Resource 和 Tool 的区别
 
-| | Tool | Resource |
-|--|------|---------|
+| 特性 | Tool | Resource |
+|------|------|---------|
+| **控制者** | Model（AI 模型） | Application（应用程序） |
 | **行为** | 执行动作（查天气） | 读取数据（读配置文件） |
 | **副作用** | 有（修改了外部状态） | 无（只读） |
 | **类比** | 函数调用 | 文件读取 |
+| **调用方式** | AI 模型主动调用 | 应用程序获取后提供给模型 |
 
-### 4.3 Prompts（提示模板）— AI 可以加载
+### 4.5 Prompts（提示模板）— AI 可以加载
 
 **是什么**：预定义的提示词模板，Server 提供，Client 可以按需获取。
+
+**控制者**：**User（用户）** — 需要用户显式调用，不能自动触发
 
 **典型场景**：
 - 代码审查模板（填入仓库名、生成审查要点）
@@ -206,15 +246,18 @@ Client ──resources/read──► Server   // 读取资源内容
 
 **为什么需要**：避免每次都传递完整的提示词，通过模板 + 变量的方式动态生成。
 
-### 4.4 Sampling（采样）— Server 可以让 AI 执行
+### 三种核心能力对比
 
-**是什么**：Server 反向请求 AI 能力，让 Host 的 LLM 生成内容。
+| 能力 | 控制者 | 触发方式 | 用途 | 示例 |
+|------|--------|----------|------|------|
+| **Tools** | Model（AI 模型） | AI 自动调用 | 执行动作（写数据、调 API） | 查天气、发邮件 |
+| **Resources** | Application（应用） | 应用获取后提供给模型 | 提供上下文（读文件、查配置） | 用户配置文件 |
+| **Prompts** | User（用户） | 用户显式调用 | 引导模型执行特定工作流 | 代码审查模板 |
 
-**典型场景**：
-- Server 收到一段文本，需要 AI 总结
-- Server 需要 AI 帮忙格式化输出
-
-**这是一个高级特性**：大多数 MCP Server 不需要实现 Sampling。
+**理解控制者的意义**：
+- **Model 控制**：AI 可以自主决定何时调用工具，适用于需要 AI 根据上下文判断的场景
+- **Application 控制**：应用程序决定如何获取和使用资源，适用于需要应用控制内容的场景
+- **User 控制**：需要用户显式选择和触发，适用于需要用户主动参与的场景
 
 ---
 
@@ -437,7 +480,7 @@ Client 收到 Server 的 Capability 后，就知道：
 | 传输方式 | 原理 | 适用场景 |
 |---------|------|---------|
 | **stdio** | 通过进程 stdin/stdout 通信 | 本地工具、CLI 工具 |
-| **SSE** | HTTP POST 请求 + Server-Sent Events 响应 | 远程服务 |
+| **Streamable HTTP** | HTTP POST 请求 + 流式响应 | 远程服务 |
 
 ### 9.2 stdio 传输原理
 
@@ -457,17 +500,38 @@ Client 收到 Server 的 Capability 后，就知道：
 - 所有消息都是一行一个 JSON
 - 简单、安全、无网络依赖
 
-### 9.3 SSE 传输原理
+### 9.3 Streamable HTTP 传输原理
+
+Streamable HTTP 是 MCP 官方推荐的远程传输方式，支持单次请求-响应和服务器推送：
 
 ```
 Client ──── POST /mcp (请求) ──────────────────► Server
-         ◄─── EventStream (SSE 响应) ─────────── Server
+         ◄─── Streamable HTTP 响应 ─────────── Server
+              (支持分块传输和服务器推送)
 ```
 
 特点：
 - 支持跨网络通信
+- 支持分块传输（chunked transfer encoding）
 - Server 可以主动推送通知
+- 支持会话恢复（Resumability）
 - 适合生产环境部署
+
+### 9.4 传输层选择
+
+```
+选择 stdio 如果：
+├── Server 是本地工具（文件操作、数据库等）
+├── 不需要跨网络访问
+├── 安全性要求高（不想暴露网络端口）
+└── 部署简单（不需要配置网络）
+
+选择 Streamable HTTP 如果：
+├── Server 是远程服务
+├── 需要被多个 Client 共用
+├── Server 是长期运行的服务
+└── 需要 Server 主动推送通知
+```
 
 ---
 
@@ -481,11 +545,12 @@ MCP 是什么
 ├── 三层架构：应用层 → 协议层 → 传输层
 └── 三种角色：Host、Client、Server
 
-四种核心能力
-├── Tools：AI 可调用的工具
-├── Resources：AI 可读取的资源
-├── Prompts：AI 可加载的提示模板
-└── Sampling：Server 可请求 AI 生成内容
+六种核心能力
+├── Tools：AI 可调用的工具（控制者：Model）
+├── Resources：AI 可读取的资源（控制者：Application）
+├── Prompts：AI 可加载的提示模板（控制者：User）
+├── Sampling：Server 可请求 AI 生成内容
+└── Elicitation：Server 可请求用户确认
 
 通信模式
 ├── Request/Response：有问有答
