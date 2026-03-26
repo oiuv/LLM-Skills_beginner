@@ -88,7 +88,14 @@ PART3-MCP-Client/
 
 第四阶段：Skills 系统
 PART4-Skills-System/
-└── 2 章内容，掌握 SKILL.md 规范和解析器
+├── 00-quickstart.md              5 分钟快速入门
+├── 01-skills-specification.md    SKILL.md 格式规范
+├── 02-skill-parser.md           Skill 解析器实现
+├── 03-skill-creation-guide.md   Skill 创建最佳实践
+├── 04-skill-evaluation.md       Skill 评估与优化
+├── 05-advanced-skill-examples.md 复杂 Skill 案例
+├── 06-description-optimization.md 触发描述优化
+└── 07-skill-testing.md          Skill 测试与迭代
 
 第五阶段：Agent 实现
 PART5-Agent/
