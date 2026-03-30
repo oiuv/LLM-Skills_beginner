@@ -13,7 +13,8 @@ PART1: MCP 协议层（理论基础）
 ├── 03-message-types.md        MCP 消息类型详解
 ├── 04-capabilities.md          Capability 协商机制
 ├── 05-transport-layer.md       stdio 和 Streamable HTTP 传输层
-└── 06-error-handling.md       错误码体系与调试
+├── 06-error-handling.md       错误码体系与调试
+└── 07-mcp-vs-rag.md           MCP 与 RAG 的选择指南
 
 PART2: MCP Server 开发
 ├── 01-server-architecture.md   Server 架构与组件协作
@@ -95,7 +96,8 @@ PART4-Skills-System/
 ├── 04-skill-evaluation.md       Skill 评估与优化
 ├── 05-advanced-skill-examples.md 复杂 Skill 案例
 ├── 06-description-optimization.md 触发描述优化
-└── 07-skill-testing.md          Skill 测试与迭代
+├── 07-skill-testing.md          Skill 测试与迭代
+└── 08-skills-vs-mcp.md          Skills、MCP 与 RAG 的选择指南
 
 第五阶段：Agent 实现
 PART5-Agent/
