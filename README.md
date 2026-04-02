@@ -8,13 +8,15 @@
 
 ```
 PART1: MCP 协议层（理论基础）
+├── 00-ecosystem-evolution.md   ⭐ AI技术演进：LLM→Agent→MCP→Skills
 ├── 01-protocol-overview.md     协议设计哲学、三层架构、四种能力
 ├── 02-json-rpc-spec.md        JSON-RPC 2.0 完整规范
 ├── 03-message-types.md        MCP 消息类型详解
 ├── 04-capabilities.md          Capability 协商机制
 ├── 05-transport-layer.md       stdio 和 Streamable HTTP 传输层
 ├── 06-error-handling.md       错误码体系与调试
-└── 07-mcp-vs-rag.md           MCP 与 RAG 的选择指南
+├── 07-mcp-vs-rag.md           MCP 与 RAG 的选择指南
+└── 08-architecture-blueprint.md ⭐ 完整系统架构六层模型
 
 PART2: MCP Server 开发
 ├── 01-server-architecture.md   Server 架构与组件协作
@@ -29,14 +31,23 @@ PART3: MCP Client 开发
 └── 03-tool-discovery.md     工具发现与调用
 
 PART4: Skills 系统
-├── 01-skills-specification.md  SKILL.md 格式规范
-└── 02-skill-parser.md       Skill 解析器实现
+├── 00-quickstart.md              5 分钟快速入门
+├── 01-skills-specification.md    SKILL.md 格式规范
+├── 02-skill-parser.md           Skill 解析器实现
+├── 03-skill-creation-guide.md   Skill 创建最佳实践
+├── 04-skill-evaluation.md       Skill 评估与优化
+├── 05-advanced-skill-examples.md 复杂 Skill 案例
+├── 06-description-optimization.md 触发描述优化
+├── 07-skill-testing.md          Skill 测试与迭代
+├── 08-skills-vs-mcp.md          Skills、MCP 与 RAG 的选择指南
+└── 09-tool-vs-skill-discovery.md ⭐ Tool 与 Skill 发现机制对比
 
 PART5: Agent 实现
-├── 01-agent-architecture.md   Agent 架构设计
-├── 02-react-pattern.md      ReAct 推理模式
-├── 03-tool-orchestration.md  工具编排模式
-└── 04-memory-system.md      三层记忆系统
+├── 01-agent-architecture.md      Agent 架构设计
+├── 02-react-pattern.md          ReAct 推理模式
+├── 03-tool-orchestration.md      工具编排模式
+├── 04-memory-system.md          三层记忆系统
+└── 05-function-calling-mechanism.md ⭐ Function Calling 机制详解
 
 PART6: 完整项目
 └── 01-project-overview.md   Weather + GitHub 助手完整实现
@@ -51,11 +62,28 @@ PART7: 生产环境
 
 完成本教程后，你将掌握：
 
+### 认知层面
+- 理解 LLM → Agent → MCP → Skills 的技术演进逻辑
+- 建立完整的六层系统架构认知
+- 理解 Function Calling 的桥接机制
+
+### 协议层面
 - 理解 MCP 协议的设计原理和通信机制
+- 掌握 JSON-RPC 2.0 规范
+- 理解 Capability 协商机制
+
+### 开发层面
 - 开发自己的 MCP Server（工具、资源、提示词）
 - 开发自己的 MCP Client（连接管理、请求分发）
 - 设计和实现 Skills（SKILL.md 规范、解析器）
 - 实现 Agent 系统（ReAct、工具编排、记忆系统）
+
+### 设计层面
+- 区分 Tool 与 Skill 的适用场景
+- 设计合理的工具接口
+- 编写高质量的 Skill 文档
+
+### 实战层面
 - 完整项目实战
 - 生产环境部署
 
@@ -75,39 +103,46 @@ PART7: 生产环境
 ## 推荐学习顺序
 
 ```
-第一阶段：协议基础
+第一阶段：建立认知地图（必读）
 PART1-MCP-Protocol/
-└── 6 章协议内容，理解 MCP 为什么这样设计
+├── 00-ecosystem-evolution.md     ⭐ AI技术演进全景（LLM→Agent→MCP→Skills）
+├── 01-protocol-overview.md       协议设计哲学
+├── ...
+└── 08-architecture-blueprint.md  ⭐ 完整系统架构六层模型
 
-第二阶段：Server 开发
-PART2-MCP-Server/
-└── 5 章内容，掌握工具、资源、提示词定义
-
-第三阶段：Client 开发
-PART3-MCP-Client/
-└── 3 章内容，理解连接管理和工具调用
-
-第四阶段：Skills 系统
-PART4-Skills-System/
-├── 00-quickstart.md              5 分钟快速入门
-├── 01-skills-specification.md    SKILL.md 格式规范
-├── 02-skill-parser.md           Skill 解析器实现
-├── 03-skill-creation-guide.md   Skill 创建最佳实践
-├── 04-skill-evaluation.md       Skill 评估与优化
-├── 05-advanced-skill-examples.md 复杂 Skill 案例
-├── 06-description-optimization.md 触发描述优化
-├── 07-skill-testing.md          Skill 测试与迭代
-└── 08-skills-vs-mcp.md          Skills、MCP 与 RAG 的选择指南
-
-第五阶段：Agent 实现
+第二阶段：理解核心机制
 PART5-Agent/
-└── 4 章内容，掌握 ReAct、工具编排、记忆系统
+├── 01-agent-architecture.md      Agent架构
+├── 02-react-pattern.md          ReAct模式
+├── 03-tool-orchestration.md     工具编排
+├── 04-memory-system.md          记忆系统
+└── 05-function-calling-mechanism.md ⭐ Function Calling详解
 
-第六阶段：项目实战
+第三阶段：动手实践
+PART2-MCP-Server/
+└── 开发 MCP Server
+
+PART3-MCP-Client/
+└── 开发 MCP Client
+
+第四阶段：掌握 Skills
+PART4-Skills-System/
+├── 00-quickstart.md              5分钟快速入门
+├── 01-skills-specification.md    SKILL.md规范
+├── 02-skill-parser.md           Skill解析器
+├── 03-skill-creation-guide.md   创建最佳实践
+├── 04-skill-evaluation.md       评估与优化
+├── 05-advanced-skill-examples.md 复杂案例
+├── 06-description-optimization.md 触发描述优化
+├── 07-skill-testing.md          测试与迭代
+├── 08-skills-vs-mcp.md          选择指南
+└── 09-tool-vs-skill-discovery.md ⭐ Tool与Skill发现机制对比
+
+第五阶段：项目实战
 PART6-Demo-Project/
 └── 综合运用所有知识
 
-第七阶段：生产部署
+第六阶段：生产部署
 PART7-Production/
 └── 容器化、监控、安全、CI/CD
 ```
@@ -155,4 +190,4 @@ demo-project/
 
 ---
 
-_Last updated: 2026-03-26_
+_Last updated: 2026-04-02_
