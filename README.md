@@ -52,7 +52,9 @@ PART5: Agent 实现
 ├── 07-planning-mechanism.md      Planning 规划机制
 ├── 08-reflection-mechanism.md    Reflection 反思机制
 ├── 09-agent-frameworks.md       Agent 框架生态
-└── 10-guardrails-safety.md      Guardrails 与 Agent 安全
+├── 10-guardrails-safety.md      Guardrails 与 Agent 安全
+├── 11-prompt-engineering.md     Prompt Engineering for Agents
+└── 12-evaluation-testing.md     Agent 评估与测试
 
 PART6: 完整项目
 └── 01-project-overview.md   Weather + GitHub 助手完整实现
@@ -126,7 +128,9 @@ PART5-Agent/
 ├── 07-planning-mechanism.md      Planning规划机制
 ├── 08-reflection-mechanism.md    Reflection反思机制
 ├── 09-agent-frameworks.md       Agent框架生态
-└── 10-guardrails-safety.md      Guardrails与安全
+├── 10-guardrails-safety.md      Guardrails与安全
+├── 11-prompt-engineering.md     Prompt Engineering专题
+└── 12-evaluation-testing.md     Agent评估与测试
 
 第三阶段：动手实践
 PART2-MCP-Server/
