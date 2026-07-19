@@ -43,11 +43,16 @@ PART4: Skills 系统
 └── 09-tool-vs-skill-discovery.md ⭐ Tool 与 Skill 发现机制对比
 
 PART5: Agent 实现
-├── 01-agent-architecture.md      Agent 架构设计
-├── 02-react-pattern.md          ReAct 推理模式
-├── 03-tool-orchestration.md      工具编排模式
-├── 04-memory-system.md          三层记忆系统
-└── 05-function-calling-mechanism.md ⭐ Function Calling 机制详解
+├── 01-function-calling-mechanism.md ⭐ Function Calling 机制详解（地基）
+├── 02-agent-architecture.md      Agent 架构设计
+├── 03-react-pattern.md          ReAct 推理模式
+├── 04-tool-orchestration.md      工具编排模式
+├── 05-memory-system.md          三层记忆系统
+├── 06-multi-agent.md           Multi-Agent 协作
+├── 07-planning-mechanism.md      Planning 规划机制
+├── 08-reflection-mechanism.md    Reflection 反思机制
+├── 09-agent-frameworks.md       Agent 框架生态
+└── 10-guardrails-safety.md      Guardrails 与 Agent 安全
 
 PART6: 完整项目
 └── 01-project-overview.md   Weather + GitHub 助手完整实现
@@ -112,11 +117,16 @@ PART1-MCP-Protocol/
 
 第二阶段：理解核心机制
 PART5-Agent/
-├── 01-agent-architecture.md      Agent架构
-├── 02-react-pattern.md          ReAct模式
-├── 03-tool-orchestration.md     工具编排
-├── 04-memory-system.md          记忆系统
-└── 05-function-calling-mechanism.md ⭐ Function Calling详解
+├── 01-function-calling-mechanism.md ⭐ Function Calling（先搞懂"LLM怎么调工具"）
+├── 02-agent-architecture.md      Agent架构
+├── 03-react-pattern.md          ReAct模式
+├── 04-tool-orchestration.md     工具编排
+├── 05-memory-system.md          记忆系统
+├── 06-multi-agent.md           Multi-Agent协作
+├── 07-planning-mechanism.md      Planning规划机制
+├── 08-reflection-mechanism.md    Reflection反思机制
+├── 09-agent-frameworks.md       Agent框架生态
+└── 10-guardrails-safety.md      Guardrails与安全
 
 第三阶段：动手实践
 PART2-MCP-Server/

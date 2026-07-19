@@ -1085,10 +1085,16 @@ class AgentWithMemory {
 
 ```
 PART5-Agent 完整内容
-├── 01-agent-architecture    Agent 架构、组件协作
-├── 02-react-pattern        ReAct 推理模式
-├── 03-tool-orchestration  工具编排（串行/并行/链式/条件）
-└── 04-memory-system         三层记忆系统
+├── 01-function-calling      Function Calling 机制（地基）
+├── 02-agent-architecture    Agent 架构、组件协作
+├── 03-react-pattern         ReAct 推理模式
+├── 04-tool-orchestration    工具编排（串行/并行/链式/条件）
+├── 05-memory-system         三层记忆系统
+├── 06-multi-agent           Multi-Agent 协作
+├── 07-planning-mechanism    Planning 规划机制
+├── 08-reflection-mechanism  Reflection 反思机制
+├── 09-agent-frameworks      Agent 框架生态
+└── 10-guardrails-safety     Guardrails 与 Agent 安全
 ```
 
 ---
