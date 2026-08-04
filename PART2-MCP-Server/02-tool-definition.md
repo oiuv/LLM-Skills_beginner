@@ -977,7 +977,7 @@ export const getWeatherTool: Tool = {
 ```typescript
 // src/server.ts
 
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import { MCPServer } from "./server.js";
 
 const server = new MCPServer({

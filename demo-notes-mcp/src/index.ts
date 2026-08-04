@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Demo Notes MCP Server
+ * Demo Notes MCP Server（2026-07-28 版本）
  *
  * A demonstration MCP server for note management.
  * This server provides tools to create, read, update, delete, and search notes.
@@ -9,8 +9,8 @@
  * Development: npm run dev
  */
 
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { McpServer } from "@modelcontextprotocol/server";
+import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import { registerTools } from "./tools.js";
 
 // Create MCP server instance

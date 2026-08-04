@@ -1,4 +1,4 @@
-# Streamable HTTP 传输模式演示
+# Streamable HTTP 传输模式演示（2026-07-28 版本）
 
 > 通过 HTTP + Chunked Transfer Encoding 进行网络通信
 
@@ -21,7 +21,7 @@ Streamable HTTP 是 MCP 官方推荐的远程传输模式，适用于**跨机器
 2. **Server 通过 Chunked Transfer Encoding** 分块返回响应
 3. **双向通信**: 支持请求-响应模式和服务器推送
 4. **消息格式**: JSON-RPC 2.0，通过 HTTP 分块传输
-5. **会话恢复**: 支持 `Mcp-Version` 和 `Mcp-Session-Id` 头
+5. **无状态**: 每个请求通过 `_meta` 携带协议版本和能力（2026-07-28 变更）
 
 ## 适用场景
 
@@ -47,12 +47,15 @@ python client.py
 
 ## 核心概念
 
-### HTTP 头约定
+### HTTP 头约定（2026-07-28 版本）
 
 ```
-Mcp-Version: 2025-11-25          # 协议版本
-Mcp-Session-Id: <uuid>           # 会话 ID（用于追踪）
+MCP-Protocol-Version: 2026-07-28   # 协议版本
+Mcp-Method: tools/call              # 请求方法名
+Mcp-Name: get_weather               # 工具名称（调用工具时）
 ```
+
+> **2026-07-28 变更**：移除了 `Mcp-Session-Id` 头部，MCP 变为无状态协议。
 
 ### 端点设计
 
@@ -79,20 +82,9 @@ HTTP/1.1 200 OK
 Content-Type: application/json
 Transfer-Encoding: chunked
 
-{"jsonrpc":"2.0","id":1,"result":{"tools":[]}}
-
-{"jsonrpc":"2.0","method":"notifications/message","params":{}}
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","tools":[]}}
 
 0
-```
-
-### 会话恢复机制
-
-```
-Client 重新连接时发送:
-Mcp-Session-Id: <previous-session-id>
-
-Server 检查会话是否还存在，如果存在继续使用，否则创建新会话
 ```
 
 ## 优点 vs 缺点
@@ -103,5 +95,4 @@ Server 检查会话是否还存在，如果存在继续使用，否则创建新�
 | Server 可主动推送 | 需要处理连接管理 |
 | 适合 Web 集成 | 有网络延迟 |
 | 支持高并发 | 需要额外安全考虑 |
-| 支持会话恢复 | — |
 | 官方推荐 | — |

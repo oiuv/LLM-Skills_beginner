@@ -1,8 +1,8 @@
 /**
- * Tool implementations for the Forum MCP Server
+ * Tool implementations for the Forum MCP Server（2026-07-28 版本）
  */
 
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer } from "@modelcontextprotocol/server";
 import { ListThreadsSchema, GetThreadSchema } from "./schemas.js";
 import { fetchThreadList, fetchThread, formatApiError } from "./client.js";
 import { ResponseFormat, ThreadPreview, ThreadDetail } from "./types.js";

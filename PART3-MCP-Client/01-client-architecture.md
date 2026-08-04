@@ -238,37 +238,33 @@ class ConnectionManager {
   /**
    * 执行握手
    */
-  private async performHandshake(): Promise<ServerCapabilities> {
+  // 2026-07-28 版本：使用 server/discover 替代 initialize 握手
+  private async performDiscover(): Promise<ServerCapabilities> {
     const response = await this.transport.sendRequest({
       jsonrpc: "2.0",
       id: 0,
-      method: "initialize",
+      method: "server/discover",
       params: {
-        protocolVersion: "2025-11-25",
-        capabilities: this.getClientCapabilities(),
-        clientInfo: {
-          name: "my-mcp-client",
-          version: "1.0.0"
+        _meta: {
+          "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+          "io.modelcontextprotocol/clientInfo": {
+            name: "my-mcp-client",
+            version: "1.0.0"
+          },
+          "io.modelcontextprotocol/clientCapabilities": this.getClientCapabilities()
         }
       }
-    });
-
-    // 发送 notifications/initialized
-    await this.transport.sendNotification({
-      jsonrpc: "2.0",
-      method: "notifications/initialized"
     });
 
     return response.capabilities;
   }
 
   /**
-   * 获取 Client 的 Capability
+   * 获取 Client 的 Capability（2026-07-28 版本）
    */
   private getClientCapabilities(): ClientCapabilities {
     return {
-      roots: { listChanged: false },
-      sampling: {}
+      elicitation: {}
     };
   }
 

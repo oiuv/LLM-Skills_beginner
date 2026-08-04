@@ -1,5 +1,5 @@
 /**
- * Tool implementations for the Notes MCP Server
+ * Tool implementations for the Notes MCP Server（2026-07-28 版本）
  */
 
 import { Note, ResponseFormat } from "./types.js";
@@ -11,7 +11,7 @@ import {
   PaginationSchema
 } from "./schemas.js";
 import { storage } from "./storage.js";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer } from "@modelcontextprotocol/server";
 
 /**
  * Format a note for markdown output

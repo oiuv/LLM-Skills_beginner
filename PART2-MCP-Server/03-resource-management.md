@@ -931,8 +931,8 @@ export function registerDynamicResources(manager: ResourcesManager): void {
 ```typescript
 // index.ts
 
-import { MCPServer } from "@modelcontextprotocol/sdk/server";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio";
+import { McpServer } from "@modelcontextprotocol/server";
+import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import { ResourcesManager } from "./resources";
 import { staticResources } from "./resources/static-resources";
 import { registerDynamicResources } from "./resources/dynamic-resources";

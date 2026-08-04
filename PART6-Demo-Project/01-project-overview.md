@@ -102,72 +102,44 @@ demo-project/
 
 ---
 
-## 3. Weather MCP Server 实现
+## 3. Weather MCP Server 实现（2026-07-28 版本）
 
 ### 3.1 工具定义
 
 ```typescript
 // servers/weather-server/src/tools.ts
 
-import { Tool } from "@modelcontextprotocol/sdk/types";
+import { z } from "zod";
 
-export const weatherTools: Tool[] = [
-  {
-    name: "get_weather",
-    description: "获取城市实时天气，包括温度、湿度、风速等",
-    inputSchema: {
-      type: "object",
-      properties: {
-        city: {
-          type: "string",
-          description: "城市名称（中文或英文）"
-        },
-        units: {
-          type: "string",
-          enum: ["metric", "imperial"],
-          default: "metric",
-          description: "温度单位"
-        }
-      },
-      required: ["city"]
-    }
-  },
-  {
-    name: "get_forecast",
-    description: "获取城市天气预报，支持 1-7 天",
-    inputSchema: {
-      type: "object",
-      properties: {
-        city: {
-          type: "string",
-          description: "城市名称"
-        },
-        days: {
-          type: "number",
-          minimum: 1,
-          maximum: 7,
-          default: 3,
-          description: "预报天数"
-        }
-      },
-      required: ["city"]
-    }
-  },
-  {
-    name: "get_air_quality",
-    description: "获取城市空气质量指数（AQI）",
-    inputSchema: {
-      type: "object",
-      properties: {
-        city: {
-          type: "string",
-          description: "城市名称"
-        }
-      },
-      required: ["city"]
-    }
-  }
-];
+// 使用 Zod schema 定义工具（2026-07-28 版本）
+export const getWeatherTool = {
+  name: "get_weather",
+  title: "天气查询",
+  description: "获取城市实时天气，包括温度、湿度、风速等",
+  inputSchema: z.object({
+    city: z.string().describe("城市名称（中文或英文）"),
+    units: z.enum(["metric", "imperial"]).default("metric").describe("温度单位"),
+  }),
+};
+
+export const getForecastTool = {
+  name: "get_forecast",
+  title: "天气预报",
+  description: "获取城市天气预报，支持 1-7 天",
+  inputSchema: z.object({
+    city: z.string().describe("城市名称"),
+    days: z.number().min(1).max(7).default(3).describe("预报天数"),
+  }),
+};
+
+export const getAirQualityTool = {
+  name: "get_air_quality",
+  title: "空气质量",
+  description: "获取城市空气质量指数（AQI）",
+  inputSchema: z.object({
+    city: z.string().describe("城市名称"),
+  }),
+};
 ```
 
 ### 3.2 Server 主类
@@ -175,27 +147,46 @@ export const weatherTools: Tool[] = [
 ```typescript
 // servers/weather-server/src/index.ts
 
-import { Server } from "@modelcontextprotocol/sdk/server";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio";
-import { CallToolRequest, ListToolsRequest } from "@modelcontextprotocol/sdk/types";
-import { weatherTools } from "./tools";
+import { McpServer } from "@modelcontextprotocol/server";
+import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
+import { z } from "zod";
 import { WeatherAPI } from "./weather-api";
 
-const server = new Server(
-  { name: "weather-server", version: "1.0.0" },
-  { capabilities: { tools: {} } }
-);
+// 创建 MCP Server 实例（新 API：McpServer）
+const server = new McpServer({
+  name: "weather-server",
+  version: "1.0.0",
+});
 
 const weatherAPI = new WeatherAPI();
 
-// 注册工具列表
-server.setRequestHandler(ListToolsRequest, async () => {
-  return { tools: weatherTools };
-});
+// 注册工具（新 API：registerTool + Zod schema）
+server.registerTool(
+  "get_weather",
+  {
+    title: "天气查询",
+    description: "获取城市实时天气，包括温度、湿度、风速等",
+    inputSchema: z.object({
+      city: z.string().describe("城市名称（中文或英文）"),
+      units: z.enum(["metric", "imperial"]).default("metric").describe("温度单位"),
+    }),
+  },
+  async ({ city, units }) => {
+    const result = await weatherAPI.getWeather(city, units);
+    return {
+      content: [{ type: "text" as const, text: result }],
+    };
+  }
+);
 
-// 处理工具调用
-server.setRequestHandler(CallToolRequest, async (request) => {
-  const { name, arguments: args } = request.params;
+// 启动服务器
+async function main() {
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+}
+
+main().catch(console.error);
+```
 
   try {
     let result: unknown;
@@ -335,7 +326,8 @@ export class WeatherAPI {
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^0.5.0"
+    "@modelcontextprotocol/server": "^1.0.0",
+    "@modelcontextprotocol/client": "^1.0.0"
   },
   "devDependencies": {
     "typescript": "^5.0.0"
@@ -352,7 +344,7 @@ export class WeatherAPI {
 ```typescript
 // servers/github-server/src/tools.ts
 
-import { Tool } from "@modelcontextprotocol/sdk/types";
+import { z } from "zod";
 
 export const githubTools: Tool[] = [
   {
@@ -416,9 +408,8 @@ export const githubTools: Tool[] = [
 ```typescript
 // servers/github-server/src/index.ts
 
-import { Server } from "@modelcontextprotocol/sdk/server";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio";
-import { CallToolRequest, ListToolsRequest } from "@modelcontextprotocol/sdk/types";
+import { McpServer } from "@modelcontextprotocol/server";
+import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import { githubTools } from "./tools";
 import { GitHubAPI } from "./github-api";
 
@@ -485,8 +476,8 @@ main().catch(console.error);
 ```typescript
 // src/mcp/client.ts
 
-import { Client } from "@modelcontextprotocol/sdk/client";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio";
+import { Client } from "@modelcontextprotocol/client";
+import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 
 interface Tool {
   name: string;

@@ -1,7 +1,7 @@
 {
   "name": "github-mcp-server",
   "version": "1.0.0",
-  "description": "GitHub MCP Server 示例",
+  "description": "GitHub MCP Server 示例（2026-07-28 版本）",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
@@ -10,7 +10,8 @@
     "dev": "tsx src/index.ts"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0"
+    "@modelcontextprotocol/server": "^1.0.0",
+    "zod": "^3.22.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

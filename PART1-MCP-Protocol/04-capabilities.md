@@ -57,105 +57,98 @@ Client 收到后就知道：
 
 ---
 
-## 2. 握手时的 Capability 交换
+## 2. 每请求 Capability 协商（2026-07-28 版本）
 
-### 2.1 完整握手流程
+> **重大变更**：`2026-07-28` 版本将 MCP 从握手时一次性交换改为**每请求协商**。Client 在每个请求的 `_meta` 中声明能力，Server 通过 `server/discover` 或响应的 `_meta` 声明能力。
+
+### 2.1 每请求协商流程
 
 ```
 Client                                                      Server
   │                                                           │
-  │ ──── initialize ───────────────────────────────────────► │
-  │     capabilities: {                                       │
-  │       roots: { listChanged: true },                      │  ← Client 声明
-  │       sampling: {}                                       │
+  │ ──── tools/call ───────────────────────────────────────► │
+  │     _meta: {                                             │
+  │       "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+  │       "io.modelcontextprotocol/clientCapabilities": {    │  ← Client 声明
+  │         "elicitation": {}                                │
+  │       }                                                  │
   │     }                                                     │
-  │     protocolVersion: "2025-11-25"                        │
-  │     clientInfo: { name: "my-agent", version: "1.0.0" }   │
   │                                                           │
-  │ ◄─── initialize result ───────────────────────────────── │
-  │     capabilities: {                                      │  ← Server 声明
-  │       tools: {},                                          │
-  │       resources: { subscribe: true }                     │
+  │ ◄─── result ──────────────────────────────────────────── │
+  │     _meta: {                                             │
+  │       "io.modelcontextprotocol/serverInfo": {            │  ← Server 声明身份
+  │         "name": "weather-server", "version": "1.0.0"     │
+  │       }                                                  │
   │     }                                                     │
-  │     protocolVersion: "2025-11-25"                        │
-  │     serverInfo: { name: "weather-server", version: "1.0.0" }
-  │                                                           │
-  │ ──── notifications/initialized ────────────────────────► │  ← 握手完成
   │                                                           │
 ```
 
 ### 2.2 交换 Capability 的意义
 
-**Client 声明 Capability 的场景**：
+**Client 声明 Capability 的场景**（通过 `_meta.io.modelcontextprotocol/clientCapabilities`）：
 
 | Capability | 说明 |
 |-----------|------|
-| `roots.listChanged` | Client 支持接收根目录变更通知 |
-| `sampling` | Client 支持 Server 请求 LLM 采样 |
+| `elicitation` | Client 支持服务器请求用户输入（2026-07-28 新增） |
+| `extensions` | Client 支持的扩展（2026-07-28 新增） |
 
-**Server 声明 Capability 的场景**：
+**Server 声明 Capability 的场景**（通过 `server/discover` 响应）：
 
 | Capability | 说明 |
 |-----------|------|
 | `tools` | Server 提供工具能力 |
 | `tools.listChanged` | Server 支持工具列表变更通知 |
-| `resources.subscribe` | Server 支持资源订阅 |
+| `resources` | Server 提供资源能力 |
 | `resources.listChanged` | Server 支持资源列表变更通知 |
 | `prompts` | Server 提供提示词能力 |
 | `prompts.listChanged` | Server 支持提示词列表变更通知 |
+| `extensions` | Server 支持的扩展（2026-07-28 新增） |
 
 ### 2.3 为什么双方都要声明 Capability？
 
-**场景 1：采样功能**
+**场景 1：Elicitation 功能**
 
-Server 说"我想让 AI 帮我生成一段文字"，但 Client 说"我不支持采样"，那 Server 就不应该调用 `sampling/createMessage`。
-
-```
-Server: "我支持 sampling"
-Client: "我不支持 sampling"
-结果：Server 不能请求采样
-```
-
-**场景 2：根目录功能**
-
-Client 说"我想让你知道我的文件根目录在哪里"，Server 说"我不支持 roots.listChanged"，那 Client 就不会监听根目录变更通知。
+Server 需要用户确认某个操作，但 Client 说"我不支持 elicitation"，那 Server 就不能发送 `elicitation/create` 请求。
 
 ```
-Client: "我会告诉你根目录变化"
-Server: "我没有 roots.listChanged"
-结果：Client 不会监听根目录变更
+Server: "我需要用户确认"
+Client: "我不支持 elicitation"
+结果：Server 不能请求用户输入
+```
+
+**场景 2：扩展功能**
+
+Client 声明支持 `io.modelcontextprotocol/tasks` 扩展，Server 也声明支持，那么双方可以使用 Tasks 功能。
+
+```
+Client: "我支持 tasks 扩展"
+Server: "我也支持 tasks 扩展"
+结果：双方可以使用 Tasks 功能
 ```
 
 ---
 
-## 3. Client Capabilities 详解
+## 3. Client Capabilities 详解（2026-07-28 版本）
 
 ### 3.1 ClientCapabilities 结构
 
 ```typescript
 interface ClientCapabilities {
   /**
-   * 文件系统根目录支持
+   * Elicitation 支持（2026-07-28 新增）
+   * 如果存在此字段，表示 Client 支持服务器请求用户输入
    */
-  roots?: {
-    /**
-     * 是否支持接收根目录变更通知
-     * 如果为 true，Server 会发送 notifications/roots/list_changed
-     */
-    listChanged?: boolean;
-  };
+  elicitation?: {};
 
   /**
-   * 采样支持
-   * 如果存在此字段，表示 Client 支持 Server 请求 LLM 采样
+   * 扩展支持（2026-07-28 新增）
+   * 声明 Client 支持的扩展
    */
-  sampling?: {};
+  extensions?: Record<string, unknown>;
 }
 ```
 
-### 3.2 roots 详解
-
-**roots 是什么**：文件系统的根目录列表。
+> **2026-07-28 变更**：移除了 `roots` 和 `sampling`（已废弃），新增 `elicitation` 和 `extensions`。
 
 **为什么需要**：让 Server 知道可以访问哪些文件路径。
 

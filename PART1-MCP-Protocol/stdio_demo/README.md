@@ -1,4 +1,4 @@
-# STDIO 传输模式演示
+# STDIO 传输模式演示（2026-07-28 版本）
 
 > 通过标准输入输出（stdin/stdout）进行进程间通信
 
@@ -19,6 +19,7 @@ STDIO 是 MCP 最简单的传输模式，适用于**同一台机器上的进程�
 2. **Client → Server**: 通过 Server 的 stdin 写入 JSON-RPC 消息
 3. **Server → Client**: 通过 Server 的 stdout 写入响应
 4. **消息格式**: 每行一个 JSON 对象（NDJSON - Newline Delimited JSON）
+5. **无状态**: 每个请求通过 `_meta` 携带协议版本和能力（2026-07-28 变更）
 
 ## 适用场景
 
@@ -44,57 +45,19 @@ node client.js
 
 Client 会自动启动 Server 子进程，完成整个演示流程。
 
-## 演示流程
-
-```
-============================================================
-MCP STDIO Client 演示 (Node.js)
-============================================================
-🔗 启动 Server: server.js
-✅ 已连接到 Server
-
-🚀 步骤 1: 初始化连接
-------------------------------------------------------------
-✅ 初始化成功
-   Client 和 Server 已通过 MCP 协议握手
-
-🚀 步骤 2: 获取工具列表
-------------------------------------------------------------
-✅ 发现 2 个工具:
-   🔧 get_weather: 获取指定城市的天气信息
-   🔧 calculate: 执行数学计算
-
-🚀 步骤 3: 调用工具 'get_weather'
-------------------------------------------------------------
-   参数: { city: '北京' }
-✅ 结果:
-🌤️ 北京天气：晴天，25°C，湿度45%
-
-🚀 步骤 3: 调用工具 'calculate'
-------------------------------------------------------------
-   参数: { expression: '2 + 3 * 4' }
-✅ 结果:
-🧮 2 + 3 * 4 = 14
-
-============================================================
-✅ 所有操作完成！
-
-👋 已断开连接
-```
-
 ## 核心概念
 
-### 消息格式
+### 消息格式（2026-07-28 版本）
 
 ```json
 // Request (Client → Server)
-{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}
+{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}}
 
 // Response (Server → Client)
-{"jsonrpc":"2.0","id":1,"result":{"tools":[{"name":"get_weather"}]}}
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","tools":[{"name":"get_weather"}]}}
 
 // Notification (Server → Client, 无 id)
-{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}
+{"jsonrpc":"2.0","method":"notifications/tools/list_changed","params":{"_meta":{"io.modelcontextprotocol/subscriptionId":1}}}
 ```
 
 ### 生命周期
@@ -139,8 +102,8 @@ stdio_demo/
 ### Server 端
 
 ```javascript
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { McpServer } from "@modelcontextprotocol/server";
+import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 
 // 创建 Server
 const server = new Server({
@@ -169,8 +132,8 @@ await server.connect(transport);
 ### Client 端
 
 ```javascript
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { Client } from "@modelcontextprotocol/client";
+import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 
 // 创建 Transport（自动启动 Server 子进程）
 const transport = new StdioClientTransport({

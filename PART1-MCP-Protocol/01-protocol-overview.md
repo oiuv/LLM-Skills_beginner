@@ -295,42 +295,41 @@ Client                              Server
 - 没有 id 字段
 - 用于：推送更新、事件通知
 
-### 5.3 握手（Handshake）
+### 5.3 无状态模型（2026-07-28）
+
+> **重大变更**：`2026-07-28` 版本将 MCP 从有状态会话改为**无状态协议**。移除了 `initialize` 握手，每个请求通过 `_meta` 字段独立携带协议版本和能力。
 
 ```
 Client                              Server
   │                                    │
-  │ ──── initialize ────────────────► │  "我支持这些能力..."
+  │ ──── tools/call ────────────────► │  每个请求自带 _meta
+  │    _meta: {protocolVersion, ...}   │
   │                                    │
-  │ ◄──── initialize response ──────── │  "我支持这些能力..."
-  │                                    │
-  │ ──── notifications/initialized ──► │  "好，我们开始吧"
+  │ ◄──── result ──────────────────── │  服务器独立处理
   │                                    │
 ```
 
 特点：
-- 连接建立后的第一步
-- 双方交换 Capability
-- 握手完成后才能进行其他操作
+- 无握手，每个请求自包含
+- 通过 `_meta` 携带协议版本和能力
+- 服务器不依赖先前请求的上下文
 
 ---
 
-## 6. 完整通信流程
+## 6. 完整通信流程（2026-07-28 版本）
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                      MCP 完整通信流程                             │
+│                      MCP 完整通信流程（无状态模型）                 │
 ├──────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  1. 建立连接                                                     │
 │     Client ──transport.connect()──► Server                      │
 │                                                                  │
-│  2. 握手（必须的第一步）                                          │
-│     Client ──initialize──► Server                                │
-│                 │                                               │
-│     Client ◄──initialize result── Server                        │
-│                 │                                               │
-│     Client ──notifications/initialized──► Server                │
+│  2. 可选：发现服务器能力                                          │
+│     Client ──server/discover──► Server                          │
+│     Client ◄──discover result── Server                          │
+│        （返回 supportedVersions、capabilities、serverInfo）      │
 │                                                                  │
 │  3. Client 发现 Server 能力                                      │
 │     Client ──tools/list──► Server  →  获取工具有哪些            │
@@ -344,27 +343,28 @@ Client                              Server
 │     │                                      │                     │
 │     │  Thought: "我需要查天气"             │                     │
 │     │  Action:  tools/call                │                     │
+│     │    _meta: {protocolVersion, ...}    │                     │
 │     │  ◄─── Server 返回结果                │                     │
 │     │  Observation: "北京：晴，25°C"       │                     │
 │     │  (如果还没完成任务，继续循环)         │                     │
 │     └─────────────────────────────────────┘                     │
 │                                                                  │
-│  5. 读取资源（可选）                                              │
-│     Client ──resources/read──► Server                          │
+│  5. 订阅变更通知（可选）                                          │
+│     Client ──subscriptions/listen──► Server                     │
+│     Client ◄──notifications/tools/list_changed── Server         │
 │                                                                  │
-│  6. 加载提示模板（可选）                                         │
-│     Client ──prompts/get──► Server                              │
-│                                                                  │
-│  7. 关闭连接                                                     │
-│     Client ──notifications/cancelled──► Server                 │
-│     或 Server 主动关闭                                           │
+│  6. 关闭连接                                                     │
+│     Client 关闭传输层连接                                        │
 │                                                                  │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-**为什么 handshake 是必须的？**
+**为什么不再需要握手？**
 
-试想：如果没有握手，Client 不知道 Server 支持什么功能，可能调用了不存在的方法导致报错。握手确保了双方在正式开始通信之前，先确认彼此的能力。
+`2026-07-28` 版本将 MCP 改为无状态协议，每个请求通过 `_meta` 字段独立携带协议版本和能力。这使得：
+- 服务器可以独立处理每个请求，不依赖会话状态
+- 支持更灵活的部署（无状态负载均衡）
+- 简化了连接管理
 
 ---
 
@@ -375,35 +375,40 @@ Client                              Server
 MCP 完全基于 JSON-RPC 2.0 规范，所有消息都是 JSON：
 
 ```typescript
-// JSON-RPC 请求
-{
-  "jsonrpc": "2.0",       // 协议版本，固定是 "2.0"
-  "id": 1,                // 请求 ID（响应时返回相同的 ID）
-  "method": "tools/list", // 方法名
-  "params": {}            // 参数（可选）
-}
-
-// JSON-RPC 响应
+// JSON-RPC 请求（2026-07-28 版本，通过 _meta 携带协议元数据）
 {
   "jsonrpc": "2.0",
   "id": 1,
-  "result": { "tools": [...] }  // 成功时返回 result
-}
-
-// JSON-RPC 错误响应
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "error": {               // 出错时返回 error
-    "code": -32602,
-    "message": "Invalid params"
+  "method": "tools/list",
+  "params": {
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientCapabilities": {}
+    }
   }
 }
 
-// JSON-RPC 通知（没有 id）
+// JSON-RPC 响应（含 resultType 和缓存字段）
 {
   "jsonrpc": "2.0",
-  "method": "notifications/initialized"
+  "id": 1,
+  "result": {
+    "resultType": "complete",
+    "tools": [...],
+    "ttlMs": 300000,
+    "cacheScope": "public"
+  }
+}
+
+// JSON-RPC 错误响应（新错误码体系）
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "error": {
+    "code": -32022,
+    "message": "Unsupported protocol version",
+    "data": { "supported": ["2026-07-28"], "requested": "2025-11-25" }
+  }
 }
 ```
 
@@ -413,63 +418,49 @@ MCP 用 `{namespace}/{action}` 的格式组织方法名：
 
 | 命名空间 | 动作 | 方法名 | 说明 |
 |---------|------|--------|------|
-| initialize | — | `initialize` | 握手请求 |
-| ping | — | `ping` | 心跳检测 |
+| server | discover | `server/discover` | 发现服务器能力（可选） |
 | tools | list | `tools/list` | 获取工具列表 |
 | tools | call | `tools/call` | 调用工具 |
 | resources | list | `resources/list` | 获取资源列表 |
 | resources | read | `resources/read` | 读取资源 |
 | prompts | list | `prompts/list` | 获取提示列表 |
 | prompts | get | `prompts/get` | 获取提示内容 |
+| subscriptions | listen | `subscriptions/listen` | 订阅通知流 |
 
 ---
 
-## 8. Capability 能力协商
+## 8. Capability 能力协商（2026-07-28 版本）
 
 ### 8.1 什么是 Capability？
 
-Capability 是 MCP 的扩展机制，Server 通过声明 Capability 告诉 Client 它支持哪些功能。
+Capability 是 MCP 的扩展机制，通过声明 Capability 告知对方支持哪些功能。
 
-```typescript
-// Server 声明自己的 Capability
-interface ServerCapabilities {
-  tools?: {
-    listChanged?: boolean;  // 是否支持 tools/list_changed 通知
-  };
-  resources?: {
-    subscribe?: boolean;    // 是否支持资源订阅
-    listChanged?: boolean; // 是否支持 resources/list_changed 通知
-  };
-  prompts?: {
-    listChanged?: boolean;
-  };
-}
-```
+### 8.2 每请求 Capability 协商
 
-### 8.2 握手时的 Capability 交换
+> **2026-07-28 变更**：从握手时一次性交换改为**每请求协商**。Client 在每个请求的 `_meta` 中声明能力，Server 通过 `server/discover` 或响应的 `_meta` 声明能力。
 
 ```
 Client                              Server
   │                                    │
-  │ ──── initialize ────────────────► │  Client 声明自己的 Capability
-  │     capabilities: {               │    "我支持 roots.listChanged"
-  │       roots: { listChanged: true } │
-  │     }                              │
+  │ ──── tools/call ────────────────► │  Client 在 _meta 中声明能力
+  │    _meta: {                        │    "我支持 elicitation"
+  │      clientCapabilities: {         │
+  │        elicitation: {}             │
+  │      }                             │
+  │    }                               │
   │                                    │
-  │ ◄──── initialize result ───────── │  Server 声明自己的 Capability
-  │     capabilities: {               │    "我支持 tools 和 resources.subscribe"
-  │       tools: {},                   │
-  │       resources: { subscribe: true }│
-  │     }                              │
+  │ ◄──── result ──────────────────── │  Server 在 _meta 中声明身份
+  │    _meta: {                        │
+  │      serverInfo: {name, version}   │
+  │    }                               │
   │                                    │
 ```
 
 ### 8.3 Capability 的实际作用
 
-Client 收到 Server 的 Capability 后，就知道：
-- 可以调用哪些方法（没声明的不要调用）
-- Server 会主动推送哪些通知（可以监听）
-- 是否需要订阅变更通知
+- Client 声明 `clientCapabilities`：告知 Server 自己支持哪些客户端功能（如 `elicitation`）
+- Server 声明 `capabilities`（通过 `server/discover`）：告知 Client 自己支持哪些服务端功能
+- 如果 Server 需要 Client 未声明的能力，返回 `-32021` MissingRequiredClientCapability 错误
 
 ---
 

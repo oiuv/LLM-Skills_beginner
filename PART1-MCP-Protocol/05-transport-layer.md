@@ -386,7 +386,9 @@ Streamable HTTP 是 MCP 官方推荐的远程传输方式，结合了 HTTP 请�
 └────────────────────────────────────────────────────────────────┘
 ```
 
-### 3.3 HTTP Header 约定
+### 3.3 HTTP Header 约定（2026-07-28 版本）
+
+> **2026-07-28 变更**：移除了 `MCP-Session-Id` 头部，MCP 变为无状态协议。添加了 `MCP-Protocol-Version` 头部。
 
 **请求头**：
 
@@ -394,8 +396,9 @@ Streamable HTTP 是 MCP 官方推荐的远程传输方式，结合了 HTTP 请�
 |--------|------|
 | `Content-Type` | 必须为 `application/json` |
 | `Accept` | 客户端支持的响应格式 |
-| `MCP-Protocol-Version` | 协议版本（可选） |
-| `MCP-Session-Id` | 会话 ID，用于会话恢复（可选） |
+| `MCP-Protocol-Version` | 协议版本（如 `2026-07-28`） |
+| `Mcp-Method` | 请求方法名（标准头部） |
+| `Mcp-Name` | 工具名称（调用工具时） |
 
 **响应头**：
 
@@ -403,17 +406,16 @@ Streamable HTTP 是 MCP 官方推荐的远程传输方式，结合了 HTTP 请�
 |--------|------|
 | `Content-Type` | 响应内容类型 |
 | `Transfer-Encoding` | `chunked`（流式响应时） |
-| `MCP-Session-Id` | 服务端生成的会话 ID |
 
 ### 3.4 流式响应格式
 
-**单次响应**（traditional）：
+**单次响应**：
 
 ```
 HTTP/1.1 200 OK
 Content-Type: application/json
 
-{"jsonrpc":"2.0","id":1,"result":{"tools":[...]}}
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","tools":[...]}}
 ```
 
 **流式响应**（streaming）：
@@ -423,40 +425,43 @@ HTTP/1.1 200 OK
 Content-Type: application/json
 Transfer-Encoding: chunked
 
-0010{"jsonrpc":"2.0","id":1,   # chunk size in hex + content
-0010"result":{"tools":[...]}}
-0000                          # chunked terminator (empty chunk)
-```
-
-**混合模式**（响应 + 推送）：
-
-```
-HTTP/1.1 200 OK
-Content-Type: application/json
-Transfer-Encoding: chunked
-
 0010{"jsonrpc":"2.0","id":1,
-0010"result":{"content":[...]}}
-0028{"jsonrpc":"2.0","method":"notifications/tools/list_changed"}
+0010"result":{"resultType":"complete","tools":[...]}}
 0000
 ```
 
-### 3.5 会话恢复（Resumability）
+### 3.5 无状态模型（2026-07-28）
 
-Streamable HTTP 支持会话恢复，Client 断开后可以重新连接并恢复状态：
+> **2026-07-28 变更**：移除了会话恢复机制（`Last-Event-ID`、SSE 事件 ID）。MCP 变为无状态协议，断开连接后需重新发送请求。
+
+Streamable HTTP 是无状态的，每个请求独立处理：
 
 ```typescript
-// 会话恢复示例
-async function resumeSession(sessionId: string): Promise<void> {
+// 无状态请求示例
+async function callTool(toolName: string, args: Record<string, unknown>) {
   const response = await fetch(`${baseUrl}/mcp`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "MCP-Session-Id": sessionId,
+      "MCP-Protocol-Version": "2026-07-28",
     },
     body: JSON.stringify({
       jsonrpc: "2.0",
-      method: "ping",
+      id: 1,
+      method: "tools/call",
+      params: {
+        name: toolName,
+        arguments: args,
+        _meta: {
+          "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+          "io.modelcontextprotocol/clientCapabilities": {}
+        }
+      }
+    }),
+  });
+  return response.json();
+}
+```
       id: 1,
     }),
   });

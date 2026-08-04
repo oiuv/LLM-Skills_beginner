@@ -650,27 +650,21 @@ class MCPServer {
   private lifecycle = new ServerLifecycle();
   private clientCapabilities: ClientCapabilities | null = null;
 
-  async handleInitialize(request: JSONRPCRequest): Promise<JSONRPCResponse> {
-    // 只能在 LISTENING 状态处理 initialize
-    if (this.lifecycle.getState() !== ServerState.LISTENING) {
-      throw new Error("Invalid state for initialize");
-    }
-
-    this.lifecycle.setState(ServerState.INITIALIZING);
-
-    const params = request.params as InitializeParams;
-
-    // 记录 Client 的 Capability
-    this.clientCapabilities = params.capabilities;
-
-    // 返回 Server 的 Capability
+  // 2026-07-28 版本：server/discover 替代 initialize 握手
+  async handleDiscover(request: JSONRPCRequest): Promise<JSONRPCResponse> {
+    // 返回 Server 的能力和支持的版本
     const result = {
-      protocolVersion: "2025-11-25",
+      resultType: "complete",
+      supportedVersions: ["2026-07-28"],
       capabilities: this.buildCapabilities(),
-      serverInfo: {
-        name: this.name,
-        version: this.version,
+      _meta: {
+        "io.modelcontextprotocol/serverInfo": {
+          name: this.name,
+          version: this.version,
+        },
       },
+      ttlMs: 3600000,
+      cacheScope: "public",
     };
 
     return {
@@ -680,14 +674,13 @@ class MCPServer {
     };
   }
 
-  handleInitializedNotification(): void {
-    // 收到 Client 的 notifications/initialized
-    // 才算握手完成
-    if (this.lifecycle.getState() !== ServerState.INITIALIZING) {
-      throw new Error("Unexpected notifications/initialized");
+  // 2026-07-28 版本：每请求从 _meta 中获取客户端能力
+  getClientCapabilities(request: JSONRPCRequest): ClientCapabilities | null {
+    const meta = request.params?._meta;
+    if (meta?.["io.modelcontextprotocol/clientCapabilities"]) {
+      return meta["io.modelcontextprotocol/clientCapabilities"];
     }
-
-    this.lifecycle.setState(ServerState.READY);
+    return null;
   }
 }
 ```

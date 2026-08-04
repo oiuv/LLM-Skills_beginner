@@ -122,30 +122,22 @@ app = Flask(__name__)
 
 @app.route('/mcp', methods=['POST'])
 def mcp_endpoint():
-    session_id = request.headers.get('Mcp-Session-Id')
-    mcp_version = request.headers.get('Mcp-Version', '2025-11-25')
+    # 2026-07-28 版本：无状态协议，从 _meta 中获取协议版本
+    mcp_version = request.headers.get('MCP-Protocol-Version', '2026-07-28')
 
-    # 获取或创建会话
-    session = get_or_create_session(session_id)
-
-    # 处理请求
+    # 处理请求（无状态，不依赖会话）
     request_data = request.get_json()
-    result = handle_request(session, request_data)
+    result = handle_request(request_data)
 
     # 使用分块传输返回响应
     def generate():
         yield json.dumps(result).encode() + b'\n'
-        # 可以持续发送更多消息
-        while True:
-            msg = session.get_message()
-            yield json.dumps(msg).encode() + b'\n'
 
     return Response(
         generate(),
         mimetype='application/json',
         headers={
-            'Mcp-Session-Id': session.id,
-            'Mcp-Version': PROTOCOL_VERSION,
+            'MCP-Protocol-Version': PROTOCOL_VERSION,
             'Transfer-Encoding': 'chunked'
         }
     )
@@ -170,7 +162,6 @@ def mcp_endpoint():
 - ✅ 高并发场景
 - ✅ 微服务架构
 - ✅ 生产环境部署
-- ✅ 需要会话恢复能力
 
 ### 5. 性能对比
 
@@ -207,43 +198,23 @@ if response.status_code != 200:
     # 连接失败
     reconnect()
 
-# 检查协议版本
-if response.headers.get('Mcp-Version') != PROTOCOL_VERSION:
+# 检查协议版本（2026-07-28 版本）
+if response.headers.get('MCP-Protocol-Version') != PROTOCOL_VERSION:
     raise ProtocolVersionMismatch()
-
-# 心跳检测
-if time.time() - last_ping > timeout:
-    # 连接超时
-    reconnect_with_session(session_id)
 ```
 
-## HTTP 头约定
+## HTTP 头约定（2026-07-28 版本）
 
 Streamable HTTP 使用以下 HTTP 头：
 
 | 头名称 | 说明 | 示例 |
 |--------|------|------|
-| `Mcp-Version` | 协议版本 | `2025-11-25` |
-| `Mcp-Session-Id` | 会话标识符 | `uuid-string` |
+| `MCP-Protocol-Version` | 协议版本 | `2026-07-28` |
+| `Mcp-Method` | 请求方法名 | `tools/call` |
+| `Mcp-Name` | 工具名称 | `get_weather` |
 | `Transfer-Encoding` | 传输编码 | `chunked` |
 
-## 会话恢复机制
-
-Streamable HTTP 支持会话恢复，当客户端重连时可以继续使用之前的会话：
-
-```python
-# 客户端重连时
-session_id = previous_session_id  # 之前保存的会话 ID
-
-response = requests.post(
-    '/mcp',
-    headers={'Mcp-Session-Id': session_id},
-    ...
-)
-
-# 如果会话仍然有效，服务器继续使用该会话
-# 如果会话已过期，服务器创建新会话并返回新的 Session-Id
-```
+> **2026-07-28 变更**：移除了 `Mcp-Session-Id` 头部，MCP 变为无状态协议。
 
 ## 学习建议
 

@@ -181,9 +181,11 @@ LLM-Skills_beginner/
 ## 技术栈
 
 - **语言**：TypeScript / Node.js
-- **协议**：JSON-RPC 2.0
+- **协议**：JSON-RPC 2.0（MCP 协议版本 `2026-07-28`）
 - **传输**：stdio、Streamable HTTP
-- **SDK**：@modelcontextprotocol/sdk
+- **SDK**：
+  - Server: `@modelcontextprotocol/server`
+  - Client: `@modelcontextprotocol/client`
 
 ---
 
@@ -204,4 +206,4 @@ demo-project/
 
 ---
 
-_Last updated: 2026-04-02_
+_Last updated: 2026-08-04_

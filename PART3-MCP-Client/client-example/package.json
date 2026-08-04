@@ -1,7 +1,7 @@
 {
   "name": "mcp-client-example",
   "version": "1.0.0",
-  "description": "MCP Client 示例",
+  "description": "MCP Client 示例（2026-07-28 版本）",
   "type": "module",
   "scripts": {
     "build": "tsc",
@@ -11,7 +11,7 @@
     "test:github": "tsx src/test-github.ts"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0"
+    "@modelcontextprotocol/client": "^1.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

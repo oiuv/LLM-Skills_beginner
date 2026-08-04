@@ -1,7 +1,7 @@
 {
   "name": "weather-mcp-server",
   "version": "1.0.0",
-  "description": "天气查询 MCP Server 示例",
+  "description": "天气查询 MCP Server 示例（2026-07-28 版本）",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
@@ -11,7 +11,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0"
+    "@modelcontextprotocol/server": "^1.0.0",
+    "zod": "^3.22.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

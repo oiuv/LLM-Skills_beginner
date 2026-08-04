@@ -469,9 +469,10 @@ Layer 1 → 用户："北京今天晴，25°C"
 │  └── protocol/ (JSON-RPC 实现)                                  │
 │                                                                 │
 │  Layer 5: Tools层                                                │
-│  ├── @modelcontextprotocol/sdk                                  │
-│  ├── server.tool() 装饰器                                       │
-│  └── tool definitions                                           │
+│  ├── @modelcontextprotocol/server                               │
+│  ├── @modelcontextprotocol/client                               │
+│  ├── server.registerTool()                                      │
+│  └── tool definitions (Zod schema)                              │
 │                                                                 │
 │  Layer 6: 系统执行层                                             │
 │  ├── fetch/axios (HTTP)                                         │

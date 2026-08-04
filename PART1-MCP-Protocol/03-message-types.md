@@ -1,32 +1,31 @@
 ﻿# MCP 消息类型详解
 
 > 本章目标：掌握 MCP 所有消息类型的完整字段定义，能够正确构造和解析任何 MCP 消息。学完本章后，你应能手动写出任何一个 MCP 请求/响应的 JSON 结构。
+>
+> **版本说明**：本教程基于 MCP 协议版本 `2026-07-28`。该版本将 MCP 从有状态会话模型改为**无状态协议**，移除了 `initialize` 握手，改为每请求携带协议元数据。
 
 ---
 
 ## 1. 消息类型总览
 
 ```
-MCP 消息
-├── 握手消息
-│   ├── initialize（Request）
-│   ├── initialize result（Response）
-│   └── notifications/initialized（Notification）
+MCP 消息（2026-07-28 版本）
+├── 发现消息
+│   ├── server/discover（Request）— 可选，查询服务器能力
+│   └── server/discover result（Response）
 │
 ├── 工具消息
 │   ├── tools/list（Request）
-│   ├── tools/list result（Response）
+│   ├── tools/list result（Response）— 含 resultType、ttlMs、cacheScope
 │   ├── tools/call（Request）
-│   └── tools/call result（Response）
+│   └── tools/call result（Response）— 含 resultType
 │
 ├── 资源消息
 │   ├── resources/list（Request）
 │   ├── resources/list result（Response）
+│   ├── resources/templates/list（Request）
 │   ├── resources/read（Request）
-│   ├── resources/read result（Response）
-│   ├── resources/subscribe（Request）
-│   ├── resources/unsubscribe（Request）
-│   └── resources/updated（Notification）
+│   └── resources/read result（Response）
 │
 ├── 提示词消息
 │   ├── prompts/list（Request）
@@ -34,95 +33,126 @@ MCP 消息
 │   ├── prompts/get（Request）
 │   └── prompts/get result（Response）
 │
+├── 订阅消息
+│   ├── subscriptions/listen（Request）— 打开通知流
+│   ├── notifications/subscriptions/acknowledged（Notification）
+│   └── notifications/tools/list_changed 等（Notification）
+│
 └── 系统消息
-    ├── ping（Request）
-    ├── ping result（Response）
     ├── notifications/cancelled（Notification）
     └── notifications/progress（Notification）
 ```
 
+**与旧版（2025-11-25）的主要变化**：
+- ❌ 移除：`initialize`、`notifications/initialized`、`ping`、`resources/subscribe`、`resources/unsubscribe`
+- ✅ 新增：`server/discover`、`subscriptions/listen`、`resultType` 字段
+- 🔄 变更：所有请求通过 `_meta` 携带协议版本和能力（无状态）
+
 ---
 
-## 2. 握手消息
+## 2. 无状态模型与 `_meta` 字段
 
-握手是 MCP 连接的第一步，方向固定为 Client → Server。
+> **重大变更**：`2026-07-28` 版本将 MCP 从有状态会话改为**无状态协议**。移除了 `initialize`/`notifications/initialized` 握手，每个请求通过 `_meta` 字段独立携带协议版本和能力。
 
-### 2.1 initialize（Request）
+### 2.1 无状态协议
 
-Client 发起握手请求。
+MCP 是无状态协议：每个请求自包含，携带处理所需的所有信息。服务器独立处理每个请求，不依赖先前请求的上下文。
 
-**触发时机**：连接建立后，发送任何其他请求之前。
+**核心变化**：
+- ❌ 旧版：连接时 `initialize` 握手一次，后续请求依赖会话状态
+- ✅ 新版：每个请求在 `_meta` 中携带 `protocolVersion` 和 `clientCapabilities`
+
+### 2.2 `_meta` 字段
+
+所有 MCP 请求都通过 `_meta` 字段携带协议元数据：
 
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 0,
-  "method": "initialize",
+  "id": 1,
+  "method": "tools/call",
   "params": {
-    "protocolVersion": "2025-11-25",
-    "capabilities": {
-      "roots": {
-        "listChanged": true
+    "name": "get_weather",
+    "arguments": { "city": "北京" },
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientInfo": {
+        "name": "my-agent",
+        "version": "1.0.0"
       },
-      "sampling": {}
-    },
-    "clientInfo": {
-      "name": "my-agent",
-      "version": "1.0.0"
+      "io.modelcontextprotocol/clientCapabilities": {
+        "elicitation": {}
+      }
     }
   }
 }
 ```
 
-**params 字段详解**：
+**`_meta` 保留键**：
 
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `protocolVersion` | string | ✅ | 协议版本，固定 `"2025-11-25"` |
-| `capabilities` | object | ✅ | Client 支持的能力 |
-| `clientInfo` | object | ✅ | Client 应用信息 |
+| 键 | 类型 | 必填 | 说明 |
+|---|------|------|------|
+| `io.modelcontextprotocol/protocolVersion` | string | ✅ | 协议版本（如 `"2026-07-28"`） |
+| `io.modelcontextprotocol/clientInfo` | object | 建议 | Client 名称和版本 |
+| `io.modelcontextprotocol/clientCapabilities` | object | ✅ | Client 能力声明 |
+| `io.modelcontextprotocol/logLevel` | string | ❌ | 日志级别（每请求 opt-in） |
+| `progressToken` | string/number | ❌ | 进度通知令牌 |
 
-**capabilities 详解**：
+**服务器响应中的 `_meta`**：
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `roots` | object | 文件系统根目录支持 |
-| `roots.listChanged` | boolean | 是否支持 `notifications/roots/list_changed` |
-| `sampling` | object | 是否支持 Server 请求 LLM 采样 |
+| 键 | 类型 | 说明 |
+|---|------|------|
+| `io.modelcontextprotocol/serverInfo` | object | Server 名称和版本 |
+| `io.modelcontextprotocol/subscriptionId` | number | 订阅通知关联 ID |
 
-**clientInfo 详解**：
+### 2.3 server/discover（Request）— 可选发现
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `name` | string | 应用名称 |
-| `version` | string | 应用版本号 |
+Client 可以在发送其他请求之前调用 `server/discover` 获取服务器信息：
 
-### 2.2 initialize result（Response）
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 0,
+  "method": "server/discover",
+  "params": {
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientInfo": {
+        "name": "my-agent",
+        "version": "1.0.0"
+      },
+      "io.modelcontextprotocol/clientCapabilities": {
+        "elicitation": {}
+      }
+    }
+  }
+}
+```
 
-Server 响应握手请求。
+### 2.4 server/discover result（Response）
 
 ```json
 {
   "jsonrpc": "2.0",
   "id": 0,
   "result": {
-    "protocolVersion": "2025-11-25",
+    "resultType": "complete",
+    "supportedVersions": ["2026-07-28"],
     "capabilities": {
       "tools": {
         "listChanged": true
       },
-      "resources": {
-        "subscribe": true,
-        "listChanged": true
-      },
-      "prompts": {
-        "listChanged": true
+      "resources": {},
+      "prompts": {}
+    },
+    "_meta": {
+      "io.modelcontextprotocol/serverInfo": {
+        "name": "weather-server",
+        "version": "1.0.0"
       }
     },
-    "serverInfo": {
-      "name": "weather-server",
-      "version": "1.0.0"
-    }
+    "ttlMs": 3600000,
+    "cacheScope": "public"
   }
 }
 ```
@@ -131,73 +161,59 @@ Server 响应握手请求。
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `protocolVersion` | string | Server 使用的协议版本 |
-| `capabilities` | object | Server 支持的能力 |
-| `serverInfo` | object | Server 应用信息 |
+| `resultType` | string | 固定 `"complete"`，表示请求完成 |
+| `supportedVersions` | string[] | 服务器支持的协议版本列表 |
+| `capabilities` | object | 服务器能力声明 |
+| `ttlMs` | number | 缓存有效期（毫秒） |
+| `cacheScope` | string | `"public"` 或 `"private"` |
 
-**capabilities.tools 详解**：
+### 2.5 版本不兼容处理
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `listChanged` | boolean | 是否支持 `notifications/tools/list_changed` |
-
-**capabilities.resources 详解**：
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `subscribe` | boolean | 是否支持 `resources/subscribe` |
-| `listChanged` | boolean | 是否支持 `notifications/resources/list_changed` |
-
-**capabilities.prompts 详解**：
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `listChanged` | boolean | 是否支持 `notifications/prompts/list_changed` |
-
-**serverInfo 详解**：
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `name` | string | Server 名称 |
-| `version` | string | Server 版本号 |
-
-### 2.3 notifications/initialized（Notification）
-
-Client 告知 Server 握手完成。
-
-**发送时机**：收到 Server 的 initialize 响应后立即发送。
+如果服务器不支持请求的版本，返回 `UnsupportedProtocolVersionError`：
 
 ```json
 {
   "jsonrpc": "2.0",
-  "method": "notifications/initialized"
+  "id": 1,
+  "error": {
+    "code": -32022,
+    "message": "Unsupported protocol version",
+    "data": {
+      "supported": ["2026-07-28"],
+      "requested": "2025-11-25"
+    }
+  }
 }
 ```
 
-**注意**：
-- 这是一个 Notification，没有 id
-- Server 收到后才认为握手完成
-- Server 在握手完成前不会处理其他请求
+Client 应从 `data.supported` 中选择一个兼容版本重试。
 
-### 2.4 握手完整流程
+### 2.6 新旧版本对比
 
 ```
+旧版（2025-11-25）有状态模型：
 Client                              Server
   │                                    │
-  │ ──── initialize ────────────────► │
-  │    protocolVersion: "2025-11-25"   │
-  │    capabilities: {...}             │
-  │    clientInfo: {...}               │
-  │                                    │
+  │ ──── initialize ────────────────► │  ← 一次性握手
   │ ◄─── initialize result ─────────── │
-  │    protocolVersion: "2025-11-25"   │
-  │    capabilities: {...}             │
-  │    serverInfo: {...}               │
-  │                                    │
   │ ──── notifications/initialized ──► │  ← 握手完成
   │                                    │
-  │         ▼ 可以开始发送其他请求 ▼     │
+  │ ──── tools/call ────────────────► │  ← 后续请求依赖会话
+  │ ◄─── tools/call result ─────────── │
+
+新版（2026-07-28）无状态模型：
+Client                              Server
   │                                    │
+  │ ──── server/discover ────────────► │  ← 可选发现
+  │ ◄─── discover result ───────────── │
+  │                                    │
+  │ ──── tools/call ────────────────► │  ← 每请求自带 _meta
+  │    _meta: {protocolVersion, ...}   │
+  │ ◄─── tools/call result ─────────── │
+  │                                    │
+  │ ──── tools/call ────────────────► │  ← 无状态，不依赖前序
+  │    _meta: {protocolVersion, ...}   │
+  │ ◄─── tools/call result ─────────── │
 ```
 
 ---
@@ -230,9 +246,11 @@ Client                              Server
   "jsonrpc": "2.0",
   "id": 1,
   "result": {
+    "resultType": "complete",
     "tools": [
       {
         "name": "get_weather",
+        "title": "天气查询",
         "description": "查询城市实时天气",
         "inputSchema": {
           "type": "object",
@@ -250,18 +268,31 @@ Client                              Server
           "required": ["city"]
         }
       }
-    ]
+    ],
+    "ttlMs": 300000,
+    "cacheScope": "public"
   }
 }
 ```
+
+**result 字段详解**：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `resultType` | string | 固定 `"complete"`，表示请求完成 |
+| `tools` | array | 工具列表 |
+| `ttlMs` | number | 缓存有效期（毫秒），此处 5 分钟 |
+| `cacheScope` | string | `"public"` 或 `"private"` |
 
 **result.tools 数组元素详解**：
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `name` | string | ✅ | 工具唯一标识符，snake_case |
+| `title` | string | ❌ | 人类可读的展示名（2026-07-28 新增） |
 | `description` | string | ✅ | 工具功能描述，供 LLM 理解何时使用 |
 | `inputSchema` | object | ✅ | JSON Schema 格式的参数定义 |
+| `outputSchema` | object | ❌ | 输出格式定义（2026-07-28 新增） |
 
 **inputSchema 详解**：
 
@@ -315,6 +346,7 @@ interface InputSchema {
   "jsonrpc": "2.0",
   "id": 2,
   "result": {
+    "resultType": "complete",
     "content": [
       {
         "type": "text",
@@ -330,8 +362,11 @@ interface InputSchema {
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
+| `resultType` | string | ✅ | `"complete"` 表示完成，`"input_required"` 表示需要更多信息（MRTR 模式） |
 | `content` | array | ✅ | 返回内容数组 |
 | `isError` | boolean | ❌ | 是否为错误结果，默认为 false |
+
+> **MRTR 模式**：当 `resultType` 为 `"input_required"` 时，表示服务器需要客户端提供更多信息（如用户确认、LLM 采样等）。详见 [Multi Round-Trip Requests](/specification/2026-07-28/basic/patterns/mrtr)。
 
 **content 数组元素详解**：
 
@@ -533,59 +568,79 @@ Server 主动通知工具列表变更。
 | `text` | string | 二选一 | 文本内容（UTF-8） |
 | `blob` | string | 二选一 | Base64 编码的二进制内容 |
 
-### 4.5 resources/subscribe（Request）
+### 4.5 subscriptions/listen（Request）— 订阅通知
 
-订阅资源变更通知。
+> **2026-07-28 变更**：`resources/subscribe` 和 `resources/unsubscribe` 已被移除，统一使用 `subscriptions/listen` 打开通知流。
+
+客户端通过 `subscriptions/listen` 打开一个长连接通知流，指定想接收的通知类型：
 
 ```json
 {
   "jsonrpc": "2.0",
   "id": 5,
-  "method": "resources/subscribe",
+  "method": "subscriptions/listen",
   "params": {
-    "uri": "file:///data/user.json"
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientCapabilities": {}
+    },
+    "notifications": {
+      "toolsListChanged": true,
+      "resourcesListChanged": true,
+      "resourceSubscriptions": ["file:///data/user.json"]
+    }
   }
 }
 ```
 
-**说明**：
-- 订阅后，当资源内容变化时，Server 会主动推送 `notifications/resources/updated`
-- 不是所有 Server 都支持此功能（需要检查 `capabilities.resources.subscribe`）
+**notifications 过滤器**：
 
-### 4.6 resources/unsubscribe（Request）
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `toolsListChanged` | boolean | 接收 `notifications/tools/list_changed` |
+| `promptsListChanged` | boolean | 接收 `notifications/prompts/list_changed` |
+| `resourcesListChanged` | boolean | 接收 `notifications/resources/list_changed` |
+| `resourceSubscriptions` | string[] | 接收指定资源的 `notifications/resources/updated` |
 
-取消订阅资源变更。
+### 4.6 notifications/subscriptions/acknowledged（Notification）
+
+服务器确认订阅，反映同意的通知类型：
 
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 6,
-  "method": "resources/unsubscribe",
+  "method": "notifications/subscriptions/acknowledged",
   "params": {
-    "uri": "file:///data/user.json"
+    "_meta": {
+      "io.modelcontextprotocol/subscriptionId": 5
+    },
+    "notifications": {
+      "toolsListChanged": true,
+      "resourcesListChanged": true,
+      "resourceSubscriptions": ["file:///data/user.json"]
+    }
   }
 }
 ```
 
 ### 4.7 notifications/resources/updated（Notification）
 
-Server 主动通知资源已更新。
+服务器通知资源已更新（通过订阅流推送）：
 
 ```json
 {
   "jsonrpc": "2.0",
   "method": "notifications/resources/updated",
   "params": {
+    "_meta": {
+      "io.modelcontextprotocol/subscriptionId": 5
+    },
     "uri": "file:///data/user.json"
   }
 }
 ```
 
-**params 详解**：
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `uri` | string | 更新的资源 URI |
+> **注意**：所有订阅通知都携带 `io.modelcontextprotocol/subscriptionId`，用于关联通知与订阅请求。
 
 ---
 
@@ -717,32 +772,7 @@ Server 主动通知资源已更新。
 
 ## 6. 系统消息
 
-### 6.1 ping（Request）
-
-心跳检测，用于检查连接是否存活。
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 9,
-  "method": "ping",
-  "params": {}
-}
-```
-
-### 6.2 ping result（Response）
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 9,
-  "result": {}
-}
-```
-
-**说明**：ping 的 result 是空对象，只要 Server 响应了，就说明连接正常。
-
-### 6.3 notifications/cancelled（Notification）
+### 6.1 notifications/cancelled（Notification）
 
 通知对方取消一个请求。
 
@@ -792,29 +822,34 @@ Server 主动通知资源已更新。
 
 ## 7. 完整类型定义
 
-### 7.1 TypeScript 类型
+### 7.1 TypeScript 类型（2026-07-28 版本）
 
 ```typescript
-// MCP 消息完整类型定义
+// MCP 消息完整类型定义（2026-07-28 版本）
 
 // ============ 请求类型 ============
 
-interface InitializeRequest {
+// 每个请求都通过 _meta 携带协议元数据
+interface MCPRequestMeta {
+  "io.modelcontextprotocol/protocolVersion": string;  // 必填
+  "io.modelcontextprotocol/clientInfo"?: { name: string; version: string };
+  "io.modelcontextprotocol/clientCapabilities": Record<string, unknown>;  // 必填
+  "io.modelcontextprotocol/logLevel"?: string;
+  progressToken?: string | number;
+}
+
+interface DiscoverRequest {
   jsonrpc: "2.0";
   id: number;
-  method: "initialize";
-  params: {
-    protocolVersion: string;
-    capabilities: ClientCapabilities;
-    clientInfo: { name: string; version: string };
-  };
+  method: "server/discover";
+  params: { _meta: MCPRequestMeta };
 }
 
 interface ToolsListRequest {
   jsonrpc: "2.0";
   id: number;
   method: "tools/list";
-  params: {};
+  params: { _meta: MCPRequestMeta };
 }
 
 interface ToolsCallRequest {
@@ -824,110 +859,88 @@ interface ToolsCallRequest {
   params: {
     name: string;
     arguments: Record<string, unknown>;
+    _meta: MCPRequestMeta;
   };
 }
 
-interface ResourcesListRequest {
+interface SubscriptionsListenRequest {
   jsonrpc: "2.0";
   id: number;
-  method: "resources/list";
-  params: {};
-}
-
-interface ResourcesReadRequest {
-  jsonrpc: "2.0";
-  id: number;
-  method: "resources/read";
-  params: { uri: string };
-}
-
-interface PromptsListRequest {
-  jsonrpc: "2.0";
-  id: number;
-  method: "prompts/list";
-  params: {};
-}
-
-interface PromptsGetRequest {
-  jsonrpc: "2.0";
-  id: number;
-  method: "prompts/get";
+  method: "subscriptions/listen";
   params: {
-    name: string;
-    arguments?: Record<string, unknown>;
+    _meta: MCPRequestMeta;
+    notifications: {
+      toolsListChanged?: boolean;
+      promptsListChanged?: boolean;
+      resourcesListChanged?: boolean;
+      resourceSubscriptions?: string[];
+    };
   };
 }
 
 // ============ 响应类型 ============
 
-interface InitializeResult {
-  jsonrpc: "2.0";
-  id: number;
-  result: {
-    protocolVersion: string;
-    capabilities: ServerCapabilities;
-    serverInfo: { name: string; version: string };
-  };
+// 所有结果都必须包含 resultType
+interface MCPResult {
+  resultType: "complete" | "input_required";
 }
 
-interface ToolsListResult {
-  jsonrpc: "2.0";
-  id: number;
-  result: {
-    tools: Tool[];
-  };
+interface DiscoverResult extends MCPResult {
+  resultType: "complete";
+  supportedVersions: string[];
+  capabilities: ServerCapabilities;
+  _meta?: { "io.modelcontextprotocol/serverInfo"?: { name: string; version: string } };
+  ttlMs?: number;
+  cacheScope?: "public" | "private";
 }
 
-interface ToolsCallResult {
-  jsonrpc: "2.0";
-  id: number;
-  result: {
-    content: Content[];
-    isError?: boolean;
-  };
+interface ToolsListResult extends MCPResult {
+  resultType: "complete";
+  tools: Tool[];
+  ttlMs?: number;
+  cacheScope?: "public" | "private";
 }
 
-interface ResourcesListResult {
-  jsonrpc: "2.0";
-  id: number;
-  result: {
-    resources: Resource[];
-    resourceTemplates?: ResourceTemplate[];
-  };
+interface ToolsCallResult extends MCPResult {
+  resultType: "complete";
+  content: Content[];
+  isError?: boolean;
 }
 
-interface ResourcesReadResult {
-  jsonrpc: "2.0";
-  id: number;
-  result: {
-    contents: ResourceContent[];
-  };
+// MRTR 模式：服务器请求更多信息
+interface InputRequiredResult extends MCPResult {
+  resultType: "input_required";
+  inputRequests?: Record<string, unknown>;
+  requestState?: string;
 }
 
 // ============ 通知类型 ============
 
-interface InitializedNotification {
+interface SubscriptionsAcknowledgedNotification {
   jsonrpc: "2.0";
-  method: "notifications/initialized";
+  method: "notifications/subscriptions/acknowledged";
+  params: {
+    _meta: { "io.modelcontextprotocol/subscriptionId": number };
+    notifications: Record<string, unknown>;
+  };
 }
 
 interface ToolsListChangedNotification {
   jsonrpc: "2.0";
   method: "notifications/tools/list_changed";
-}
-
-interface ResourcesUpdatedNotification {
-  jsonrpc: "2.0";
-  method: "notifications/resources/updated";
-  params: { uri: string };
+  params: {
+    _meta: { "io.modelcontextprotocol/subscriptionId": number };
+  };
 }
 
 // ============ 辅助类型 ============
 
 interface Tool {
   name: string;
+  title?: string;  // 2026-07-28 新增：人类可读展示名
   description: string;
   inputSchema: InputSchema;
+  outputSchema?: Record<string, unknown>;  // 2026-07-28 新增
 }
 
 interface InputSchema {
@@ -939,27 +952,6 @@ interface InputSchema {
     default?: unknown;
   }>;
   required?: string[];
-}
-
-interface Resource {
-  uri: string;
-  name: string;
-  description?: string;
-  mimeType?: string;
-}
-
-interface ResourceTemplate {
-  uriTemplate: string;
-  name: string;
-  description?: string;
-  mimeType?: string;
-}
-
-interface ResourceContent {
-  uri: string;
-  mimeType?: string;
-  text?: string;
-  blob?: string;
 }
 
 interface Content {
@@ -975,15 +967,15 @@ interface Content {
 }
 
 interface ClientCapabilities {
-  roots?: { listChanged?: boolean };
-  sampling?: {};
+  elicitation?: {};
+  extensions?: Record<string, unknown>;
 }
 
 interface ServerCapabilities {
   tools?: { listChanged?: boolean };
-  resources?: { subscribe?: boolean; listChanged?: boolean };
+  resources?: { listChanged?: boolean };
   prompts?: { listChanged?: boolean };
-  sampling?: {};
+  extensions?: Record<string, unknown>;
 }
 ```
 
@@ -992,29 +984,33 @@ interface ServerCapabilities {
 ## 8. 本章小结
 
 ```
-MCP 消息类型速查
+MCP 消息类型速查（2026-07-28 版本）
 
-握手（必须按顺序）
-├── initialize → initialize result → notifications/initialized
-└── params 和 result 中包含 capabilities 交换
+发现（可选）
+└── server/discover → 获取服务器能力和支持的版本
 
 工具（最常用）
-├── tools/list → 获取工具列表（含 inputSchema）
-└── tools/call → 调用工具（返回 content 数组）
+├── tools/list → 获取工具列表（含 inputSchema、title、缓存字段）
+└── tools/call → 调用工具（返回 content 数组，含 resultType）
 
 资源（用于读取数据）
 ├── resources/list → 获取资源列表
 ├── resources/read → 读取资源内容
-├── resources/subscribe → 订阅变更
-└── notifications/resources/updated → 推送变更
+└── subscriptions/listen → 订阅变更通知
 
 提示词（模板复用）
 ├── prompts/list → 获取提示词列表
 └── prompts/get → 获取填充后的提示词
 
 系统
-├── ping → 心跳检测
-└── notifications/cancelled → 取消请求
+├── notifications/cancelled → 取消请求
+└── notifications/progress → 进度通知
+
+关键变化（vs 2025-11-25）
+├── 无状态：每个请求通过 _meta 携带协议版本和能力
+├── 移除：initialize 握手、ping、resources/subscribe
+├── 新增：server/discover、subscriptions/listen、resultType
+└── 新增：工具 title 字段、缓存字段（ttlMs、cacheScope）
 ```
 
 ---

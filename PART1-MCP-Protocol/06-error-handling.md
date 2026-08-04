@@ -145,7 +145,6 @@ function validateJSON(obj: unknown): string {
 **常见原因**：
 - 拼写错误（如 `tool/list` 而不是 `tools/list`）
 - 调用了 Server 未声明的能力
-- 握手未完成就调用其他方法
 
 **示例**：
 
@@ -558,42 +557,44 @@ stderr.on("data", (data) => {
 
 ### 4.2 协议问题
 
-#### 场景 1：握手失败
+#### 场景 1：版本不兼容
 
 **症状**：
 ```
-Error: Server refused handshake
+Error: Unsupported protocol version
 ```
 
 **排查**：
 
 ```bash
-# 1. 检查是否发送了正确的 initialize 请求
-# 2. 检查协议版本是否匹配
-# 3. 查看 Server 端的握手处理逻辑
+# 1. 检查 _meta 中的 protocolVersion 是否正确
+# 2. 使用 server/discover 查询服务器支持的版本
+# 3. 查看错误响应中的 data.supported 列表
 ```
 
 **常见原因**：
 - 协议版本不匹配
-- Server 要求认证但没有提供
+- 服务器不支持客户端请求的版本
 
 **解决方案**：
 
 ```typescript
-// 发送正确的协议版本
-const response = await send({
+// 先用 server/discover 查询服务器支持的版本
+const discoverResult = await send({
   jsonrpc: "2.0",
   id: 0,
-  method: "initialize",
+  method: "server/discover",
   params: {
-    protocolVersion: "2025-11-25", // 确保版本正确
-    capabilities: {},
-    clientInfo: { name: "my-client", version: "1.0.0" }
+    _meta: {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientCapabilities": {}
+    }
   }
 });
 
-// 检查响应中的 serverInfo
-console.log("Server:", response.result.serverInfo);
+// 从 supportedVersions 中选择兼容版本
+const supportedVersion = discoverResult.result.supportedVersions[0];
+console.log("Server supports:", supportedVersion);
 ```
 
 #### 场景 2：调用工具返回 Method not found
@@ -606,16 +607,16 @@ Error: Method not found: tools/call
 **排查**：
 
 ```bash
-# 1. 检查 Server 的 capabilities 是否包含 tools
+# 1. 使用 server/discover 检查 Server 的 capabilities 是否包含 tools
 # 2. 查看 Server 是否正确注册了 tools/call 处理器
 ```
 
 **解决方案**：
 
 ```typescript
-// 在调用前检查 Server 的 capabilities
-const initResult = await client.initialize();
-if (!initResult.capabilities.tools) {
+// 使用 server/discover 检查 Server 的 capabilities
+const discoverResult = await client.discover();
+if (!discoverResult.capabilities.tools) {
   throw new Error("Server does not support tools");
 }
 
@@ -701,7 +702,7 @@ sudo tcpdump -i lo -A 'tcp dst port 3000 or tcp src port 3000'
 #### 技巧 3：使用 MCP 官方测试工具
 
 ```bash
-# 安装 @modelcontextprotocol/sdk 后
+# 安装 @modelcontextprotocol/server 后
 npx mcp dev /path/to/server.js
 
 # 这会启动一个交互式测试环境

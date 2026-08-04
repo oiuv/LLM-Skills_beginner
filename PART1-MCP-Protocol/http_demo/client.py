@@ -20,8 +20,8 @@ from typing import Dict, Any, Optional
 from urllib.parse import urljoin
 
 
-# 协议版本
-PROTOCOL_VERSION = "2025-11-25"
+# 协议版本（2026-07-28 版本）
+PROTOCOL_VERSION = "2026-07-28"
 
 
 class MCPClient:

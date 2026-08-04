@@ -1,7 +1,7 @@
 {
   "name": "llm-skills-beginner",
   "version": "1.0.0",
-  "description": "从零开始学习 MCP 协议、Server/Client 开发、Skills 系统、Agent 实现的完整教程",
+  "description": "从零开始学习 MCP 协议、Server/Client 开发、Skills 系统、Agent 实现的完整教程（基于 MCP 2026-07-28 版本）",
   "private": true,
   "workspaces": [
     "PART2-MCP-Server/weather-server",
@@ -20,7 +20,8 @@
     "client-example": "cd PART3-MCP-Client/client-example && npm run start"
   },
   "devDependencies": {
-    "@modelcontextprotocol/sdk": "^1.27.1",
+    "@modelcontextprotocol/server": "^1.0.0",
+    "@modelcontextprotocol/client": "^1.0.0",
     "@types/node": "^20.0.0",
     "tsx": "^4.7.0",
     "typescript": "^5.3.0"

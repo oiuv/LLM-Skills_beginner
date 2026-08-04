@@ -1,20 +1,20 @@
 #!/usr/bin/env node
 
 /**
- * GitHub MCP Server
- * 
+ * GitHub MCP Server（2026-07-28 版本）
+ *
+ * 基于新版 MCP SDK（@modelcontextprotocol/server）实现
+ * 使用 McpServer + registerTool + Zod schema
+ *
  * 提供 GitHub 相关的工具：
  * - search_repos: 搜索仓库
  * - get_repo_info: 获取仓库信息
  * - list_commits: 列出提交记录
  */
 
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from "@modelcontextprotocol/sdk/types.js";
+import { McpServer } from "@modelcontextprotocol/server";
+import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
+import { z } from "zod";
 
 // 模拟 GitHub 数据
 const mockRepos: Record<string, RepoData> = {
@@ -74,123 +74,28 @@ interface RepoData {
   }>;
 }
 
-class GitHubServer {
-  private server: Server;
+// 创建 MCP Server 实例（新 API：McpServer）
+const server = new McpServer({
+  name: "github-server",
+  version: "1.0.0",
+});
 
-  constructor() {
-    this.server = new Server(
-      {
-        name: "github-server",
-        version: "1.0.0",
-      },
-      {
-        capabilities: {
-          tools: {},
-        },
-      }
-    );
-
-    this.setupToolHandlers();
-  }
-
-  private setupToolHandlers(): void {
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
-      return {
-        tools: [
-          {
-            name: "search_repos",
-            description: "搜索 GitHub 仓库",
-            inputSchema: {
-              type: "object",
-              properties: {
-                query: {
-                  type: "string",
-                  description: "搜索关键词",
-                },
-                language: {
-                  type: "string",
-                  description: "编程语言筛选（可选）",
-                },
-              },
-              required: ["query"],
-            },
-          },
-          {
-            name: "get_repo_info",
-            description: "获取仓库详细信息",
-            inputSchema: {
-              type: "object",
-              properties: {
-                owner: {
-                  type: "string",
-                  description: "仓库所有者",
-                },
-                repo: {
-                  type: "string",
-                  description: "仓库名称",
-                },
-              },
-              required: ["owner", "repo"],
-            },
-          },
-          {
-            name: "list_commits",
-            description: "列出仓库的最近提交记录",
-            inputSchema: {
-              type: "object",
-              properties: {
-                owner: {
-                  type: "string",
-                  description: "仓库所有者",
-                },
-                repo: {
-                  type: "string",
-                  description: "仓库名称",
-                },
-                limit: {
-                  type: "number",
-                  description: "返回的提交数量（默认5）",
-                  default: 5,
-                },
-              },
-              required: ["owner", "repo"],
-            },
-          },
-        ],
-      };
-    });
-
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
-      const { name, arguments: args } = request.params;
-
-      try {
-        switch (name) {
-          case "search_repos":
-            return await this.handleSearchRepos(args as { query: string; language?: string });
-          case "get_repo_info":
-            return await this.handleGetRepoInfo(args as { owner: string; repo: string });
-          case "list_commits":
-            return await this.handleListCommits(args as { owner: string; repo: string; limit?: number });
-          default:
-            throw new Error(`Unknown tool: ${name}`);
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        return {
-          content: [{ type: "text", text: `Error: ${errorMessage}` }],
-          isError: true,
-        };
-      }
-    });
-  }
-
-  private async handleSearchRepos(args: { query: string; language?: string }) {
-    const { query, language } = args;
-    
+// 注册工具：search_repos（新 API：registerTool + Zod schema）
+server.registerTool(
+  "search_repos",
+  {
+    title: "搜索仓库",
+    description: "搜索 GitHub 仓库",
+    inputSchema: z.object({
+      query: z.string().describe("搜索关键词"),
+      language: z.string().optional().describe("编程语言筛选（可选）"),
+    }),
+  },
+  async ({ query, language }) => {
     // 模拟搜索
     const results = Object.entries(mockRepos)
       .filter(([key, repo]) => {
-        const matchQuery = key.includes(query.toLowerCase()) || 
+        const matchQuery = key.includes(query.toLowerCase()) ||
                           repo.description.toLowerCase().includes(query.toLowerCase());
         const matchLanguage = language ? repo.language.toLowerCase() === language.toLowerCase() : true;
         return matchQuery && matchLanguage;
@@ -202,7 +107,7 @@ class GitHubServer {
 
     if (results.length === 0) {
       return {
-        content: [{ type: "text", text: `未找到匹配 "${query}" 的仓库` }],
+        content: [{ type: "text" as const, text: `未找到匹配 "${query}" 的仓库` }],
       };
     }
 
@@ -220,11 +125,22 @@ ${results.map(r => `
 ━━━━━━━━━━━━━━━━━━
     `.trim();
 
-    return { content: [{ type: "text", text: result }] };
+    return { content: [{ type: "text" as const, text: result }] };
   }
+);
 
-  private async handleGetRepoInfo(args: { owner: string; repo: string }) {
-    const { owner, repo } = args;
+// 注册工具：get_repo_info
+server.registerTool(
+  "get_repo_info",
+  {
+    title: "仓库信息",
+    description: "获取仓库详细信息",
+    inputSchema: z.object({
+      owner: z.string().describe("仓库所有者"),
+      repo: z.string().describe("仓库名称"),
+    }),
+  },
+  async ({ owner, repo }) => {
     const key = `${owner}/${repo}`;
     const data = mockRepos[key];
 
@@ -243,11 +159,23 @@ ${results.map(r => `
 ━━━━━━━━━━━━━━━━━━
     `.trim();
 
-    return { content: [{ type: "text", text: result }] };
+    return { content: [{ type: "text" as const, text: result }] };
   }
+);
 
-  private async handleListCommits(args: { owner: string; repo: string; limit?: number }) {
-    const { owner, repo, limit = 5 } = args;
+// 注册工具：list_commits
+server.registerTool(
+  "list_commits",
+  {
+    title: "提交记录",
+    description: "列出仓库的最近提交记录",
+    inputSchema: z.object({
+      owner: z.string().describe("仓库所有者"),
+      repo: z.string().describe("仓库名称"),
+      limit: z.number().min(1).max(20).default(5).describe("返回的提交数量（默认5）"),
+    }),
+  },
+  async ({ owner, repo, limit }) => {
     const key = `${owner}/${repo}`;
     const data = mockRepos[key];
 
@@ -267,15 +195,21 @@ ${commits.map(c => `
 ━━━━━━━━━━━━━━━━━━
     `.trim();
 
-    return { content: [{ type: "text", text: result }] };
+    return { content: [{ type: "text" as const, text: result }] };
   }
+);
 
-  async start(): Promise<void> {
-    const transport = new StdioServerTransport();
-    console.error("🐙 GitHub MCP Server 已启动");
-    await this.server.connect(transport);
-  }
+// 启动服务器
+async function main() {
+  const transport = new StdioServerTransport();
+
+  console.error("🐙 GitHub MCP Server 已启动（2026-07-28 版本）");
+  console.error("等待客户端连接...\n");
+
+  await server.connect(transport);
 }
 
-const server = new GitHubServer();
-server.start().catch(console.error);
+main().catch((error) => {
+  console.error("服务器启动失败:", error);
+  process.exit(1);
+});

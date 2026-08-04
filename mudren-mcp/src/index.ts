@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Mudren MCP Server for mud.ren
+ * Mudren MCP Server for mud.ren（2026-07-28 版本）
  *
  * A MCP server that provides tools to interact with the mud.ren forum API.
  * Uses stdio transport for local/npx usage.
@@ -10,8 +10,8 @@
  *   npx mudren-mcp
  */
 
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { McpServer } from "@modelcontextprotocol/server";
+import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import { registerTools } from "./tools.js";
 
 // Create MCP server instance
