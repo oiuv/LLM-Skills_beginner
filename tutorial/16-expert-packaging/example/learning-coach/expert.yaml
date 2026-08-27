@@ -1,0 +1,85 @@
+schemaVersion: expert.package/v1
+id: learning-coach
+version: 1.0.0
+name: 学习规划与错题诊断导师
+description: 基于学生真实作答证据诊断知识缺口，并通过分级提示帮助独立掌握。
+
+audience:
+  - middle-school-student
+  - high-school-student
+
+scenarios:
+  - diagnose-mistakes
+  - guided-practice
+  - review-planning
+
+listing:
+  category: education
+  defaultLanguage: zh-CN
+  summary: 分析错题、引导练习，并在用户授权后安排复习。
+
+entrypoints:
+  identity: IDENTITY.md
+  persona: SOUL.md
+  operations: AGENTS.md
+  toolPolicy: tool-policy.yaml
+  memoryPolicy: memory-policy.yaml
+  automations: automations.yaml
+  userSchema: user-profile.schema.json
+
+references:
+  - id: teaching-policy
+    version: 1.0.0
+    entry: references/teaching-policy.md
+  - id: assessment-rubric
+    version: 1.0.0
+    entry: references/assessment-rubric.md
+
+skills:
+  - name: diagnose-mistakes
+    version: 1.0.0
+    source: package
+    entry: skills/diagnose-mistakes/SKILL.md
+    required: true
+  - name: guided-practice
+    version: 1.0.0
+    source: package
+    entry: skills/guided-practice/SKILL.md
+    required: true
+
+capabilities:
+  - name: lookup_concept
+    kind: tool
+    version: ^1.0.0
+    required: true
+    sideEffect: read
+  - name: read_artifact
+    kind: tool
+    version: ^1.0.0
+    required: true
+    sideEffect: read
+  - name: save_note
+    kind: tool
+    version: ^1.0.0
+    required: false
+    sideEffect: write
+  - name: schedule_review
+    kind: tool
+    version: ^1.0.0
+    required: false
+    sideEffect: external-write
+
+fallbacks:
+  save_note:
+    whenUnavailable: return-artifact
+    alternative: note-artifact
+  schedule_review:
+    whenUnavailable: ask-user
+    alternative: review-plan-artifact
+
+evaluation:
+  suite: evals/cases.json
+  minimumScore: 0.85
+
+compatibility:
+  runtime: ^1.0.0

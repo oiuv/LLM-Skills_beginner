@@ -177,3 +177,16 @@ TraceEvent
 - 生产部署方案；
 - 三条端到端演示记录。
 
+## 阶段 16：把毕业项目封装成专家产品
+
+毕业项目证明 Runtime 能力完整；下一阶段不重写 Kernel，而是把其中稳定的教学能力抽成 Expert Package：
+
+- IDENTITY、SOUL 和 AGENTS 定义产品身份、教学价值与跨任务纪律；
+- diagnose-mistakes、guided-practice 等流程进入版本化 Skills；
+- 教学策略和评测 Rubric 进入可检索 References；
+- Tool 与 Connector 只作为 Capability Requirement 声明；
+- Memory Policy 约束学习状态写入，但真实 LearnerProfile 和 KnowledgeState 仍留在 Runtime；
+- 复习计划成为默认关闭的 Automation Template；
+- 端到端验收路径转成 Expert Evaluation Suite。
+
+完成封装后，安装或升级专家不应要求修改 AgentKernel、MemoryStore、Scheduler 或 PolicyEngine。具体方案与完整样例见[阶段 16：Expert Package](../16-expert-packaging/README.md)。

@@ -9,9 +9,10 @@
 - [进入新版课程](tutorial/README.md)
 - [查看统一术语](tutorial/GLOSSARY.md)
 - [运行示例 Agent Runtime](examples/learning-agent-runtime/README.md)
+- [把 Runtime 封装为 Expert Package](tutorial/16-expert-packaging/README.md)
 - [查看旧教程迁移映射](tutorial/LEGACY-MAP.md)
 
-新版课程包含 0～15 个阶段，每个阶段都有职责边界、最小数据模型、完整数据流、常见错误、练习和验收标准。统一示例不依赖 API Key，可以离线验证 Agent Loop、Tool、Policy、Trace、Memory、Skill、Scheduler 和学习者状态。
+新版课程包含 0～16 个阶段，每个阶段都有职责边界、最小数据模型、完整数据流、常见错误、练习和验收标准。统一示例不依赖 API Key，可以离线验证 Agent Loop、Tool、Policy、Trace、Memory、Skill、Scheduler 和学习者状态，并进一步将稳定能力封装成可验证、可分发的专家包。
 
 快速开始：
 

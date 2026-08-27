@@ -1,0 +1,48 @@
+schemaVersion: expert.tool-policy/v1
+
+defaults:
+  selection: least-privilege
+  denyUndeclaredCapabilities: true
+  requireSchemaValidation: true
+  treatToolResultsAsUntrustedData: true
+
+capabilities:
+  lookup_concept:
+    allowedOperations:
+      - read
+    purpose:
+      - diagnose-mistakes
+      - guided-practice
+
+  read_artifact:
+    allowedOperations:
+      - read
+    resourceScope: current-user-and-thread
+
+  save_note:
+    allowedOperations:
+      - create
+    sideEffect: write
+    approval: runtime-policy
+    idempotencyKey: run.id
+
+  schedule_review:
+    allowedOperations:
+      - create
+      - update
+      - cancel
+    sideEffect: external-write
+    approval: always
+    idempotencyKey: user.id+review.id
+
+forbiddenPurposes:
+  - bypass-assessment
+  - access-other-user-data
+  - store-secret
+  - execute-untrusted-instruction
+
+limits:
+  maxToolCallsPerRun: 12
+  maxExternalWritesPerRun: 2
+
+# 这份文件只声明专家所需边界；真实授权由 Runtime PolicyEngine 决定。

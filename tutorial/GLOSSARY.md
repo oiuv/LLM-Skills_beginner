@@ -34,6 +34,19 @@
 | Skill Runner | 加载 Skill 并将其约束、资源和步骤注入 Agent Run 的组件 |
 | RAG | 在生成前检索外部知识并加入上下文的模式，不等于长期记忆 |
 
+## 专家封装
+
+| 术语 | 定义 |
+|---|---|
+| Expert Package | 位于 Agent Runtime 之上的版本化产品定义，组合身份、方法论、Skills、能力需求、状态策略、自动化模板和评测 |
+| Expert Definition | 某个 expertId 与 version 对应的不可变专家定义及其依赖摘要 |
+| Resolved Expert Definition | Expert Package 通过路径、依赖、安全、预算和评测校验后的编译结果 |
+| Expert Installation | 某环境安装 Expert Definition 后形成的依赖锁、组织配置、信任状态和可用性记录 |
+| Expert Binding | 某个用户或 Thread 对一个已安装专家的选择、同意、连接和自动化配置 |
+| Expert Run Context | 一次 Run 固定使用的 Expert 版本、依赖 Lock、用户状态引用和有效权限视图 |
+| Automation Template | Expert Package 声明的时间或事件触发意图；绑定并编译后才能成为 Trigger |
+| Trust Envelope | 关于 Package 来源、签名、Digest、审核、权限摘要、评测和撤销状态的信任记录 |
+
 ## 状态与记忆
 
 | 术语 | 定义 |
@@ -79,3 +92,9 @@ Connector 处理具体系统、账号和权限
 Runtime 真正执行并保存状态
 ~~~
 
+~~~
+Expert Package       可发布定义
+Expert Installation  环境级安装与依赖解析
+Expert Binding       用户级选择、连接和同意
+Expert Run Context   单次执行固定版本与有效权限
+~~~

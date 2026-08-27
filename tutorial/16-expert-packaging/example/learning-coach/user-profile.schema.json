@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "expert://learning-coach/user-profile.schema.json",
+  "title": "Learning Coach User Profile",
+  "type": "object",
+  "properties": {
+    "preferredLanguage": {
+      "type": "string",
+      "default": "zh-CN"
+    },
+    "gradeLevel": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40
+    },
+    "minutesPerDay": {
+      "type": "integer",
+      "minimum": 5,
+      "maximum": 240
+    },
+    "timezone": {
+      "type": "string",
+      "description": "IANA timezone, for example Asia/Shanghai"
+    },
+    "explanationPreference": {
+      "type": "string",
+      "enum": ["concise", "step-by-step", "visual", "socratic"]
+    },
+    "accessibilityNeeds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["screen-reader", "large-text", "captions", "reduced-motion"]
+      },
+      "uniqueItems": true
+    }
+  },
+  "required": ["preferredLanguage"],
+  "additionalProperties": false
+}

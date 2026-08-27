@@ -1,0 +1,48 @@
+schemaVersion: expert.automations/v1
+
+templates:
+  - id: daily-guided-practice
+    type: cron
+    disabledByDefault: true
+    description: 在用户选择的学习时间，根据复习队列生成一次短练习。
+    schedule:
+      localTime: "20:00"
+      daysOfWeek: [1, 2, 3, 4, 5]
+      timezoneSource: user-profile
+    task:
+      skill: guided-practice
+      objective: 根据当前 KnowledgeState 和到期复习项生成今日练习
+    capabilities:
+      allow:
+        - read_artifact
+        - lookup_concept
+      requestWhenNeeded:
+        - schedule_review
+    delivery:
+      channel: user-preference
+      silentWhenNoDueItem: true
+    limits:
+      maxRunsPerDay: 1
+      maxConcurrentRuns: 1
+      maxToolCallsPerRun: 8
+      maxCostPerRun: 0.05
+    retry:
+      maxAttempts: 2
+      deadLetter: true
+
+  - id: quiz-completed-diagnosis
+    type: event
+    disabledByDefault: true
+    description: 测验完成后，根据作答证据生成诊断候选，不直接修改掌握度。
+    eventType: learning.quiz.completed
+    task:
+      skill: diagnose-mistakes
+      objective: 根据本次测验作答生成 Diagnosis 和 LearningEvidence
+    deduplication:
+      key: event.id
+    limits:
+      maxRunsPerEvent: 1
+      maxToolCallsPerRun: 10
+    retry:
+      maxAttempts: 3
+      deadLetter: true

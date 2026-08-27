@@ -1,0 +1,53 @@
+schemaVersion: expert.memory-policy/v1
+
+allowedKinds:
+  - preference
+  - semantic
+  - episodic
+
+fields:
+  learningGoal:
+    storage: learner-profile
+    retentionDays: 365
+    requiresConfirmation: true
+  explanationPreference:
+    storage: learner-profile
+    retentionDays: 180
+    requiresConfirmation: false
+  studySchedulePreference:
+    storage: learner-profile
+    retentionDays: 180
+    requiresConfirmation: true
+  knowledgeState:
+    storage: learner-model
+    retentionDays: 365
+    requiresEvidence: true
+  misconceptionHistory:
+    storage: learner-model
+    retentionDays: 180
+    requiresEvidence: true
+
+forbidden:
+  - password
+  - access-token
+  - payment-data
+  - unrelated-private-conversation
+  - hidden-assessment-answer
+
+write:
+  requireSource: true
+  includeConfidence: true
+  deduplicateBy:
+    - userId
+    - field
+    - sourceRef
+
+recall:
+  maxRecords: 8
+  requireSource: true
+  includeConfidence: true
+  excludeSharedThreadPrivateMemory: true
+
+uninstall:
+  offerExport: true
+  offerDeleteExpertNamespace: true

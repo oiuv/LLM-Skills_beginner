@@ -78,8 +78,9 @@ MCP / Connector / Local Tool：连接实际能力
 | 13 | [安全与评测](13-safety-evaluation/README.md) | 怎样证明系统安全有效 | 建立评测集、Trace 和权限策略 |
 | 14 | [生产化](14-production/README.md) | 怎样部署和运营 Agent | 完成生产架构设计 |
 | 15 | [毕业项目](15-capstone/README.md) | 怎样组合所有能力 | 交付完整学习 Agent |
+| 16 | [专家包与生态](16-expert-packaging/README.md) | 怎样把稳定能力封装成专家产品 | 交付可验证、可分发的 Expert Package |
 
-## 五个递进里程碑
+## 六个递进里程碑
 
 ### M1：能调用工具的单 Agent
 
@@ -137,6 +138,19 @@ MCP / Connector / Local Tool：连接实际能力
 - 有权限、数据保留和遗忘机制；
 - 多智能体收益大于额外成本和复杂度。
 
+### M6：可创建、可分发的专家产品
+
+范围：阶段 16。在不修改 Agent Kernel 的前提下，把指导学习能力封装成版本化 Expert Package，声明身份、方法论、Skills、Capabilities、Memory Policy、Automation Template 和 Evaluation Suite。
+
+验收：
+
+- ExpertDefinition、ExpertInstallation、ExpertBinding 和 UserRuntimeState 互相隔离；
+- Package 声明能力需求，但不授予 Tool 或 Connector 权限；
+- 用户 Memory、Thread、凭证和运行状态不进入可发布 Package；
+- Automation 默认不产生 Job，必须经过用户绑定和 Scheduler 编译；
+- 安装前完成依赖、安全、上下文预算和评测校验；
+- Run 固定 Expert 与依赖版本，升级不会改写运行中任务。
+
 ## 示例工程
 
 课程统一示例位于 examples/learning-agent-runtime。它在同一组稳定接口上逐步添加能力：
@@ -159,10 +173,11 @@ TraceStore
 
 ## 学习方式
 
-- 初学者按 0～15 顺序学习。
+- 初学者按 0～16 顺序学习。
 - 已掌握 LLM API 的开发者可从阶段 2 开始。
 - 已会 Tool Calling、但系统仍像聊天机器人的开发者，从阶段 7～9 开始。
 - 教育产品团队重点学习阶段 7、9、10、12、13。
+- 想建设专家市场或团队模板库的开发者，在完成阶段 3、5～9、13～14 后学习阶段 16。
 - MCP、框架和厂商 SDK 都是实现手段；先理解稳定接口，再选择具体技术。
 
 ## 课程约束
@@ -175,4 +190,3 @@ TraceStore
 - Prompt 不代替权限、状态机、持久化和测试。
 
 统一术语见 [GLOSSARY.md](GLOSSARY.md)，旧教程迁移关系见 [LEGACY-MAP.md](LEGACY-MAP.md)，贡献章节使用 [CHAPTER-TEMPLATE.md](CHAPTER-TEMPLATE.md)。
-
