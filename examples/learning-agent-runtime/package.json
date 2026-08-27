@@ -1,0 +1,16 @@
+{
+  "name": "@tutorial/learning-agent-runtime",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "从零开发 Agent 教程的供应商无关示例运行时",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "demo": "npm run build && node dist/index.js",
+    "test": "npm run build && node --test dist/runtime.test.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  }
+}

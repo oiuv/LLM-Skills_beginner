@@ -1,6 +1,29 @@
-# LLM-Skills_beginner
+# 从零开发完整 Agent
 
-> 从零开始学习 MCP 协议、Server/Client 开发、Skills 系统、Agent 实现的完整教程
+> 从模型调用开始，循序渐进构建具备理解、规划、记忆、执行、调度、多模态和治理能力的指导学习 Agent。
+
+## 新版推荐入口
+
+本项目已从“以 MCP 和 Skills 为主线”重构为“以完整 Agent 生命周期为主线”。
+
+- [进入新版课程](tutorial/README.md)
+- [查看统一术语](tutorial/GLOSSARY.md)
+- [运行示例 Agent Runtime](examples/learning-agent-runtime/README.md)
+- [查看旧教程迁移映射](tutorial/LEGACY-MAP.md)
+
+新版课程包含 0～15 个阶段，每个阶段都有职责边界、最小数据模型、完整数据流、常见错误、练习和验收标准。统一示例不依赖 API Key，可以离线验证 Agent Loop、Tool、Policy、Trace、Memory、Skill、Scheduler 和学习者状态。
+
+快速开始：
+
+~~~bash
+npm install
+npm run tutorial
+npm run test:runtime
+~~~
+
+## 旧版专题资料
+
+以下 PART1～PART7 内容继续保留，适合作为 MCP、Skills、Agent 模式和部署的深入阅读；零基础学习请优先使用新版课程。
 
 ---
 
